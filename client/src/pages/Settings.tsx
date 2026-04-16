@@ -8,9 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Users, Settings, Target, Tag, Building2, Shield,
-  Plus, Edit, Trash2, GripVertical, Check, X,
+  Plus, Edit, Trash2, GripVertical, Check, X, Mail, Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -61,6 +62,10 @@ function UsersTab() {
   const { user: currentUser } = useAuth();
   const { data: dbUsers = [], isLoading, refetch } = trpc.users.list.useQuery();
   const { confirm } = useConfirm();
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("user");
+  const [inviting, setInviting] = useState(false);
 
   const updateRole = trpc.users.updateRole.useMutation({
     onSuccess: () => { toast.success("Rol actualizado"); refetch(); },
@@ -71,6 +76,31 @@ function UsersTab() {
     onSuccess: () => { toast.success("Estado actualizado"); refetch(); },
     onError: (e) => toast.error("Error: " + e.message),
   });
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) { toast.error("El email es requerido"); return; }
+    setInviting(true);
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(`Invitación enviada a ${inviteEmail}`);
+        setShowInvite(false);
+        setInviteEmail("");
+      } else {
+        toast.error(data.error || "Error al enviar invitación");
+      }
+    } catch {
+      toast.error("Error de conexión");
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const displayUsers = dbUsers.length > 0 ? dbUsers : [
     { id: currentUser?.id ?? 1, name: currentUser?.name ?? "Admin CRM", email: currentUser?.email ?? "admin@crmpro.local", role: currentUser?.role ?? "admin", isActive: true, lastSignedIn: "Ahora" },
@@ -83,10 +113,55 @@ function UsersTab() {
           <h3 className="font-semibold">Usuarios del Sistema</h3>
           <p className="text-sm text-muted-foreground">Gestiona los usuarios y sus permisos</p>
         </div>
-        <Button size="sm" className="bg-gradient-to-r from-blue-600 to-indigo-600">
+        <Button size="sm" className="bg-gradient-to-r from-blue-600 to-indigo-600" onClick={() => setShowInvite(true)}>
           <Plus size={14} className="mr-1.5" /> Invitar Usuario
         </Button>
       </div>
+
+      {/* Invite Dialog */}
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail size={18} className="text-blue-500" /> Invitar usuario al equipo
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Email del usuario</Label>
+              <Input
+                type="email"
+                placeholder="vendedor@empresa.com"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Rol</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Vendedor</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              El usuario recibirá un email con un enlace para crear su cuenta. El enlace expira en 7 días.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInvite(false)}>Cancelar</Button>
+            <Button onClick={handleInvite} disabled={inviting} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+              {inviting ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Mail size={14} className="mr-1.5" />}
+              Enviar invitación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Card className="border-border/50">
         <CardContent className="p-0">
           <table className="w-full">

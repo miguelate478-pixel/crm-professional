@@ -11,6 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { User } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "./cookies";
+import { sendPasswordResetEmail, sendInvitationEmail } from "./email";
 
 const __dirname_auth = path.dirname(fileURLToPath(import.meta.url));
 
@@ -432,6 +433,102 @@ export function registerAuthRoutes(app: Express) {
     } catch (err) {
       console.error("[Register] Error:", err);
       res.status(500).json({ error: "Error interno del servidor" });
+    }
+  });
+
+  // POST /api/forgot-password
+  app.post("/api/forgot-password", async (req: Request, res: Response) => {
+    const { email } = req.body || {};
+    if (!email?.trim()) { res.status(400).json({ error: "Email requerido" }); return; }
+    try {
+      const db = await import("../db");
+      const user = await db.getUserByEmail(email.toLowerCase().trim());
+      // Always return success to avoid email enumeration
+      if (user) {
+        const token = await db.createPasswordResetToken(user.openId);
+        await sendPasswordResetEmail(user.email!, user.name ?? "Usuario", token);
+      }
+      res.json({ success: true, message: "Si el email existe, recibirás un enlace para restablecer tu contraseña." });
+    } catch (err) {
+      console.error("[ForgotPassword] Error:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  });
+
+  // POST /api/reset-password
+  app.post("/api/reset-password", async (req: Request, res: Response) => {
+    const { token, password } = req.body || {};
+    if (!token || !password) { res.status(400).json({ error: "Token y contraseña requeridos" }); return; }
+    if (password.length < 8) { res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" }); return; }
+    try {
+      const db = await import("../db");
+      const openId = await db.validatePasswordResetToken(token);
+      if (!openId) { res.status(400).json({ error: "Token inválido o expirado" }); return; }
+      const hash = await hashPassword(password);
+      await db.updateUserPassword(openId, hash);
+      await db.markResetTokenUsed(token);
+      res.json({ success: true, message: "Contraseña actualizada correctamente" });
+    } catch (err) {
+      console.error("[ResetPassword] Error:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  });
+
+  // POST /api/invite — admin invites a team member
+  app.post("/api/invite", async (req: Request, res: Response) => {
+    try {
+      const user = await getUserFromRequest(req);
+      if (!user) { res.status(401).json({ error: "No autenticado" }); return; }
+      if (user.role !== "admin") { res.status(403).json({ error: "Solo administradores pueden invitar usuarios" }); return; }
+
+      const { email, role = "user" } = req.body || {};
+      if (!email?.trim()) { res.status(400).json({ error: "Email requerido" }); return; }
+
+      const db = await import("../db");
+      const org = await db.getOrganizationById(user.organizationId);
+      const token = await db.createTeamInvitation(user.organizationId, email, role, user.id);
+      await sendInvitationEmail(email, user.name ?? "El administrador", org?.name ?? "tu empresa", token);
+
+      res.json({ success: true, message: `Invitación enviada a ${email}` });
+    } catch (err) {
+      console.error("[Invite] Error:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  });
+
+  // POST /api/accept-invite — new user accepts invitation
+  app.post("/api/accept-invite", async (req: Request, res: Response) => {
+    const { token, name, password } = req.body || {};
+    if (!token || !name?.trim() || !password) { res.status(400).json({ error: "Todos los campos son requeridos" }); return; }
+    if (password.length < 8) { res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" }); return; }
+    try {
+      const db = await import("../db");
+      const invite = await db.validateTeamInvitation(token);
+      if (!invite) { res.status(400).json({ error: "Invitación inválida o expirada" }); return; }
+
+      const existing = await db.getUserByEmail(invite.email);
+      if (existing) { res.status(409).json({ error: "Ya existe una cuenta con este email" }); return; }
+
+      const hash = await hashPassword(password);
+      await db.createUserWithPassword({
+        email: invite.email,
+        name: name.trim(),
+        passwordHash: hash,
+        organizationId: invite.organizationId,
+        role: invite.role as "user" | "admin",
+      });
+      await db.markInvitationAccepted(token);
+
+      const newUser = await db.getUserByEmail(invite.email);
+      if (!newUser) { res.status(500).json({ error: "Error al crear usuario" }); return; }
+
+      const sessionToken = await signSession(newUser.openId, newUser.name ?? invite.email);
+      const opts = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...opts, maxAge: ONE_YEAR_MS, secure: false, sameSite: "lax" });
+      res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email } });
+    } catch (err) {
+      console.error("[AcceptInvite] Error:", err);
+      res.status(500).json({ error: "Error interno" });
     }
   });
 }

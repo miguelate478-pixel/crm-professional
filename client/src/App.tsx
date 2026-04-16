@@ -9,6 +9,9 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import Home from "./pages/Home";
 import LoginPage from "./pages/Login";
 import RegisterPage from "./pages/Register";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
+import AcceptInvitePage from "./pages/AcceptInvite";
 import Dashboard from "./pages/Dashboard";
 import LeadsPage from "./pages/Leads";
 import ContactsPage from "./pages/Contacts";
@@ -50,6 +53,9 @@ function Router() {
       <Switch>
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+        <Route path="/accept-invite" component={AcceptInvitePage} />
         <Route path="/" component={Home} />
         <Route component={Home} />
       </Switch>

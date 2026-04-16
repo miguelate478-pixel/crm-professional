@@ -293,6 +293,29 @@ export async function initDb() {
   `);
 
   await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token TEXT PRIMARY KEY,
+      openId TEXT NOT NULL,
+      expiresAt TEXT NOT NULL,
+      usedAt TEXT,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+  `);
+
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS team_invitations (
+      token TEXT PRIMARY KEY,
+      organizationId INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      invitedBy INTEGER NOT NULL,
+      expiresAt TEXT NOT NULL,
+      acceptedAt TEXT,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+  `);
+
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS automations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organizationId INTEGER NOT NULL,
@@ -1253,4 +1276,109 @@ export function deleteView(organizationId: number, module: string, viewId: numbe
   const existing = savedViewsStore.get(key) ?? [];
   savedViewsStore.set(key, existing.filter((v: any) => v.id !== viewId));
   return { success: true };
+}
+
+// ── PASSWORD RESET TOKENS ─────────────────────────────────────────────────────
+
+export async function createPasswordResetToken(openId: string): Promise<string> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO password_reset_tokens (token, openId, expiresAt) VALUES (?, ?, ?)`,
+      args: [token, openId, expiresAt],
+    });
+    return token;
+  } finally {
+    await client.close();
+  }
+}
+
+export async function validatePasswordResetToken(token: string): Promise<string | null> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const result = await client.execute({
+      sql: `SELECT openId, expiresAt, usedAt FROM password_reset_tokens WHERE token = ?`,
+      args: [token],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.usedAt) return null; // already used
+    if (new Date(row.expiresAt as string) < new Date()) return null; // expired
+    return row.openId as string;
+  } finally {
+    await client.close();
+  }
+}
+
+export async function markResetTokenUsed(token: string): Promise<void> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    await client.execute({
+      sql: `UPDATE password_reset_tokens SET usedAt = datetime('now') WHERE token = ?`,
+      args: [token],
+    });
+  } finally {
+    await client.close();
+  }
+}
+
+// ── TEAM INVITATIONS ──────────────────────────────────────────────────────────
+
+export async function createTeamInvitation(organizationId: number, email: string, role: string, invitedBy: number): Promise<string> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO team_invitations (token, organizationId, email, role, invitedBy, expiresAt) VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [token, organizationId, email.toLowerCase().trim(), role, invitedBy, expiresAt],
+    });
+    return token;
+  } finally {
+    await client.close();
+  }
+}
+
+export async function validateTeamInvitation(token: string): Promise<{ organizationId: number; email: string; role: string } | null> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const result = await client.execute({
+      sql: `SELECT organizationId, email, role, expiresAt, acceptedAt FROM team_invitations WHERE token = ?`,
+      args: [token],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.acceptedAt) return null;
+    if (new Date(row.expiresAt as string) < new Date()) return null;
+    return { organizationId: row.organizationId as number, email: row.email as string, role: row.role as string };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function markInvitationAccepted(token: string): Promise<void> {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    await client.execute({
+      sql: `UPDATE team_invitations SET acceptedAt = datetime('now') WHERE token = ?`,
+      args: [token],
+    });
+  } finally {
+    await client.close();
+  }
+}
+
+export async function getOrganizationById(id: number) {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const result = await client.execute({
+      sql: `SELECT * FROM organizations WHERE id = ?`,
+      args: [id],
+    });
+    return result.rows[0] ?? null;
+  } finally {
+    await client.close();
+  }
 }
