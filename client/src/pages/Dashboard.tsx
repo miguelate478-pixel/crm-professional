@@ -10,12 +10,13 @@ import {
 import {
   TrendingUp, TrendingDown, Users, Target, DollarSign,
   CheckSquare, Calendar, Filter, Download, ArrowRight,
-  FileText, Activity, Clock, AlertCircle,
+  FileText, Activity, Clock, AlertCircle, Sparkles, Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { SkeletonDashboard } from "@/components/ui/skeleton-card";
+import { toast } from "sonner";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,16 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const [asesor, setAsesor] = useState("todos");
   const [mes, setMes] = useState("todos");
+
+  // Seed demo data
+  const utils = trpc.useUtils();
+  const seedMutation = trpc.seed.loadDemo.useMutation({
+    onSuccess: () => {
+      toast.success("¡Datos de demo cargados! Recargando...");
+      setTimeout(() => window.location.reload(), 1200);
+    },
+    onError: (e) => toast.error("Error: " + e.message),
+  });
 
   // Auth for personalized welcome
   const { user } = trpc.auth.me.useQuery(undefined, { select: d => d }) as any;
@@ -210,6 +221,20 @@ export default function Dashboard() {
             >
               + Nuevo Lead
             </Button>
+            {totalLeads === 0 && totalOpps === 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs border-dashed border-violet-500 text-violet-500 hover:bg-violet-500/10"
+                onClick={() => seedMutation.mutate()}
+                disabled={seedMutation.isPending}
+              >
+                {seedMutation.isPending
+                  ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Cargando...</>
+                  : <><Sparkles size={12} className="mr-1.5" /> Cargar datos demo</>
+                }
+              </Button>
+            )}
           </div>
         </div>
 
