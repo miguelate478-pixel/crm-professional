@@ -347,44 +347,46 @@ export async function initDb() {
       (1, 1, 'Proyecto Principal', 'Proyecto principal de la empresa', 'activo');
   `);
 
-  // Demo seed data
-  await client.executeMultiple(`
-    INSERT OR IGNORE INTO leads (id, organizationId, firstName, lastName, email, phone, company, jobTitle, source, status, score) VALUES
-      (101, 1, 'Carlos', 'Mendoza', 'carlos@techcorp.com', '+57 300 111 2222', 'TechCorp', 'CEO', 'Sitio Web', 'calificado', 85),
-      (102, 1, 'Ana', 'Rodríguez', 'ana@innovate.com', '+57 310 222 3333', 'Innovate SAS', 'CTO', 'Referido', 'contactado', 72),
-      (103, 1, 'Pedro', 'García', 'pedro@globalco.com', '+57 320 333 4444', 'GlobalCo', 'Director', 'Email', 'nuevo', 55),
-      (104, 1, 'María', 'López', 'maria@startup.com', '+57 315 444 5555', 'StartupXYZ', 'Fundadora', 'Redes Sociales', 'nuevo', 63),
-      (105, 1, 'Luis', 'Torres', 'luis@enterprise.com', '+57 305 555 6666', 'Enterprise SA', 'VP Ventas', 'Sitio Web', 'calificado', 91);
+  // Demo seed data — solo en desarrollo local
+  if (process.env.NODE_ENV !== "production") {
+    await client.executeMultiple(`
+      INSERT OR IGNORE INTO leads (id, organizationId, firstName, lastName, email, phone, company, jobTitle, source, status, score) VALUES
+        (101, 1, 'Carlos', 'Mendoza', 'carlos@techcorp.com', '+57 300 111 2222', 'TechCorp', 'CEO', 'Sitio Web', 'calificado', 85),
+        (102, 1, 'Ana', 'Rodríguez', 'ana@innovate.com', '+57 310 222 3333', 'Innovate SAS', 'CTO', 'Referido', 'contactado', 72),
+        (103, 1, 'Pedro', 'García', 'pedro@globalco.com', '+57 320 333 4444', 'GlobalCo', 'Director', 'Email', 'nuevo', 55),
+        (104, 1, 'María', 'López', 'maria@startup.com', '+57 315 444 5555', 'StartupXYZ', 'Fundadora', 'Redes Sociales', 'nuevo', 63),
+        (105, 1, 'Luis', 'Torres', 'luis@enterprise.com', '+57 305 555 6666', 'Enterprise SA', 'VP Ventas', 'Sitio Web', 'calificado', 91);
 
-    INSERT OR IGNORE INTO contacts (id, organizationId, firstName, lastName, email, phone, jobTitle, department, city, country) VALUES
-      (101, 1, 'Carlos', 'Mendoza', 'carlos@techcorp.com', '+57 300 111 2222', 'CEO', 'Dirección', 'Bogotá', 'Colombia'),
-      (102, 1, 'Ana', 'Rodríguez', 'ana@innovate.com', '+57 310 222 3333', 'CTO', 'Tecnología', 'Medellín', 'Colombia'),
-      (103, 1, 'Pedro', 'García', 'pedro@globalco.com', '+57 320 333 4444', 'Director Comercial', 'Ventas', 'Cali', 'Colombia');
+      INSERT OR IGNORE INTO contacts (id, organizationId, firstName, lastName, email, phone, jobTitle, department, city, country) VALUES
+        (101, 1, 'Carlos', 'Mendoza', 'carlos@techcorp.com', '+57 300 111 2222', 'CEO', 'Dirección', 'Bogotá', 'Colombia'),
+        (102, 1, 'Ana', 'Rodríguez', 'ana@innovate.com', '+57 310 222 3333', 'CTO', 'Tecnología', 'Medellín', 'Colombia'),
+        (103, 1, 'Pedro', 'García', 'pedro@globalco.com', '+57 320 333 4444', 'Director Comercial', 'Ventas', 'Cali', 'Colombia');
 
-    INSERT OR IGNORE INTO opportunities (id, organizationId, pipelineId, stageId, name, amount, probability, expectedCloseDate) VALUES
-      (101, 1, 1, 4, 'Implementación ERP - TechCorp', 85000, 75, '2025-06-30'),
-      (102, 1, 1, 3, 'Consultoría Digital - Innovate', 42000, 60, '2025-07-15'),
-      (103, 1, 1, 2, 'Licencias Software - GlobalCo', 28000, 40, '2025-08-01'),
-      (104, 1, 1, 1, 'Proyecto Alpha - Enterprise SA', 120000, 25, '2025-09-30');
+      INSERT OR IGNORE INTO opportunities (id, organizationId, pipelineId, stageId, name, amount, probability, expectedCloseDate) VALUES
+        (101, 1, 1, 4, 'Implementación ERP - TechCorp', 85000, 75, '2025-06-30'),
+        (102, 1, 1, 3, 'Consultoría Digital - Innovate', 42000, 60, '2025-07-15'),
+        (103, 1, 1, 2, 'Licencias Software - GlobalCo', 28000, 40, '2025-08-01'),
+        (104, 1, 1, 1, 'Proyecto Alpha - Enterprise SA', 120000, 25, '2025-09-30');
 
-    INSERT OR IGNORE INTO tasks (id, organizationId, title, priority, status, dueDate, createdBy) VALUES
-      (101, 1, 'Llamar a Carlos Mendoza - TechCorp', 'alta', 'pendiente', date('now', '+1 day'), 1),
-      (102, 1, 'Enviar propuesta a Innovate SAS', 'alta', 'pendiente', date('now', '+2 days'), 1),
-      (103, 1, 'Reunión de seguimiento - GlobalCo', 'media', 'pendiente', date('now', '+3 days'), 1),
-      (104, 1, 'Preparar demo para Enterprise SA', 'alta', 'en_progreso', date('now', '+5 days'), 1);
+      INSERT OR IGNORE INTO tasks (id, organizationId, title, priority, status, dueDate, createdBy) VALUES
+        (101, 1, 'Llamar a Carlos Mendoza - TechCorp', 'alta', 'pendiente', date('now', '+1 day'), 1),
+        (102, 1, 'Enviar propuesta a Innovate SAS', 'alta', 'pendiente', date('now', '+2 days'), 1),
+        (103, 1, 'Reunión de seguimiento - GlobalCo', 'media', 'pendiente', date('now', '+3 days'), 1),
+        (104, 1, 'Preparar demo para Enterprise SA', 'alta', 'en_progreso', date('now', '+5 days'), 1);
 
-    INSERT OR IGNORE INTO products (id, organizationId, name, category, price, cost, sku, isActive) VALUES
-      (101, 1, 'CRM Pro - Plan Básico', 'Software', 299.00, 50.00, 'CRM-BASIC', 1),
-      (102, 1, 'CRM Pro - Plan Empresarial', 'Software', 899.00, 150.00, 'CRM-ENT', 1),
-      (103, 1, 'Consultoría de Implementación', 'Servicios', 150.00, 60.00, 'CONS-IMPL', 1),
-      (104, 1, 'Soporte Premium Anual', 'Servicios', 1200.00, 200.00, 'SUPP-PREM', 1);
+      INSERT OR IGNORE INTO products (id, organizationId, name, category, price, cost, sku, isActive) VALUES
+        (101, 1, 'CRM Pro - Plan Básico', 'Software', 299.00, 50.00, 'CRM-BASIC', 1),
+        (102, 1, 'CRM Pro - Plan Empresarial', 'Software', 899.00, 150.00, 'CRM-ENT', 1),
+        (103, 1, 'Consultoría de Implementación', 'Servicios', 150.00, 60.00, 'CONS-IMPL', 1),
+        (104, 1, 'Soporte Premium Anual', 'Servicios', 1200.00, 200.00, 'SUPP-PREM', 1);
 
-    INSERT OR IGNORE INTO companies (id, organizationId, name, industry, employees, city, country, email) VALUES
-      (101, 1, 'TechCorp', 'Tecnología', 150, 'Bogotá', 'Colombia', 'info@techcorp.com'),
-      (102, 1, 'Innovate SAS', 'Software', 80, 'Medellín', 'Colombia', 'info@innovate.com'),
-      (103, 1, 'GlobalCo', 'Consultoría', 320, 'Cali', 'Colombia', 'info@globalco.com'),
-      (104, 1, 'Enterprise SA', 'Manufactura', 500, 'Bogotá', 'Colombia', 'info@enterprise.com');
-  `);
+      INSERT OR IGNORE INTO companies (id, organizationId, name, industry, employees, city, country, email) VALUES
+        (101, 1, 'TechCorp', 'Tecnología', 150, 'Bogotá', 'Colombia', 'info@techcorp.com'),
+        (102, 1, 'Innovate SAS', 'Software', 80, 'Medellín', 'Colombia', 'info@innovate.com'),
+        (103, 1, 'GlobalCo', 'Consultoría', 320, 'Cali', 'Colombia', 'info@globalco.com'),
+        (104, 1, 'Enterprise SA', 'Manufactura', 500, 'Bogotá', 'Colombia', 'info@enterprise.com');
+    `);
+  }
 
   await client.close();
   console.log("[DB] SQLite initialized at", DB_PATH);
