@@ -4,7 +4,7 @@ import {
   BarChart3, CheckSquare, ChevronLeft, ChevronRight,
   FileText, LayoutDashboard, LogOut, Moon, Settings, Sun,
   Target, Users, Building2, Bell, Search, TrendingUp, Trophy,
-  User, DollarSign, AlertCircle, Clock, Package, Menu, Inbox, Video,
+  User, DollarSign, AlertCircle, Clock, Package, Menu, Inbox, Video, Zap,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -29,6 +29,7 @@ const navigationItems = [
   { label: "Metas",        path: "/goals",        icon: Trophy,          group: "analítica" },
   { label: "Informes",     path: "/reports",      icon: BarChart3,       group: "analítica" },
   { label: "Análisis",     path: "/analytics",    icon: TrendingUp,      group: "analítica" },
+  { label: "Integraciones",path: "/integrations", icon: Zap,             group: "sistema" },
   { label: "Configuración",path: "/settings",     icon: Settings,        group: "sistema" },
 ];
 
