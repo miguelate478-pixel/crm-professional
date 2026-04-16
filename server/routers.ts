@@ -14,6 +14,7 @@ import { activitiesRouter } from "./routers/activities";
 import { companiesRouter } from "./routers/companies";
 import { productsRouter } from "./routers/products";
 import { automationsRouter } from "./routers/automations";
+import { whatsappRouter } from "./routers/whatsapp";
 import * as db from "./db";
 import { z } from "zod";
 
@@ -40,6 +41,7 @@ export const appRouter = router({
   companies: companiesRouter,
   products: productsRouter,
   automations: automationsRouter,
+  whatsapp: whatsappRouter,
 
   search: router({
     global: protectedProcedure

@@ -316,6 +316,22 @@ export async function initDb() {
   `);
 
   await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      direction TEXT NOT NULL CHECK(direction IN ('outbound','inbound')),
+      phone TEXT NOT NULL,
+      message TEXT NOT NULL,
+      messageId TEXT,
+      status TEXT DEFAULT 'sent',
+      leadId INTEGER,
+      contactId INTEGER,
+      sentBy INTEGER,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+  `);
+
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS automations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organizationId INTEGER NOT NULL,
@@ -1381,4 +1397,96 @@ export async function getOrganizationById(id: number) {
   } finally {
     await client.close();
   }
+}
+
+// ── WHATSAPP MESSAGES ─────────────────────────────────────────────────────────
+
+export async function saveWhatsAppMessage(data: {
+  organizationId: number;
+  direction: "outbound" | "inbound";
+  phone: string;
+  message: string;
+  messageId?: string;
+  status?: string;
+  leadId?: number;
+  contactId?: number;
+  sentBy?: number;
+}) {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const r = await client.execute({
+      sql: `INSERT INTO whatsapp_messages 
+            (organizationId, direction, phone, message, messageId, status, leadId, contactId, sentBy)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        data.organizationId, data.direction, data.phone, data.message,
+        data.messageId ?? null, data.status ?? "sent",
+        data.leadId ?? null, data.contactId ?? null, data.sentBy ?? null,
+      ],
+    });
+    return { id: Number(r.lastInsertRowid) };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function getWhatsAppMessages(organizationId: number, phone?: string, limit = 50) {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    let sql = `SELECT * FROM whatsapp_messages WHERE organizationId = ?`;
+    const args: any[] = [organizationId];
+    if (phone) { sql += ` AND phone = ?`; args.push(phone); }
+    sql += ` ORDER BY createdAt DESC LIMIT ?`;
+    args.push(limit);
+    const result = await client.execute({ sql, args });
+    return result.rows;
+  } finally {
+    await client.close();
+  }
+}
+
+export async function getWhatsAppConversations(organizationId: number) {
+  const client = createClient({ url: `file:${DB_PATH}` });
+  try {
+    const result = await client.execute({
+      sql: `SELECT phone, 
+              MAX(createdAt) as lastMessageAt,
+              COUNT(*) as messageCount,
+              MAX(CASE WHEN direction='inbound' THEN message END) as lastInbound,
+              MAX(CASE WHEN direction='outbound' THEN message END) as lastOutbound,
+              MAX(message) as lastMessage,
+              MAX(leadId) as leadId,
+              MAX(contactId) as contactId
+            FROM whatsapp_messages 
+            WHERE organizationId = ?
+            GROUP BY phone
+            ORDER BY lastMessageAt DESC`,
+      args: [organizationId],
+    });
+    return result.rows;
+  } finally {
+    await client.close();
+  }
+}
+
+export async function findContactByPhone(organizationId: number, phone: string) {
+  const db = getDb();
+  const normalized = phone.replace(/[\s\-\(\)]/g, "");
+  const r = await db.select().from(contacts)
+    .where(and(
+      eq(contacts.organizationId, organizationId),
+      or(eq(contacts.phone, phone), eq(contacts.phone, normalized), eq(contacts.mobile, phone), eq(contacts.mobile, normalized))
+    )).limit(1);
+  return r[0] ?? null;
+}
+
+export async function findLeadByPhone(organizationId: number, phone: string) {
+  const db = getDb();
+  const normalized = phone.replace(/[\s\-\(\)]/g, "");
+  const r = await db.select().from(leads)
+    .where(and(
+      eq(leads.organizationId, organizationId),
+      or(eq(leads.phone, phone), eq(leads.phone, normalized))
+    )).limit(1);
+  return r[0] ?? null;
 }

@@ -31,6 +31,7 @@ import ProfilePage from "./pages/Profile";
 import WorkQueuePage from "./pages/WorkQueue";
 import MeetingsPage from "./pages/Meetings";
 import IntegrationsPage from "./pages/Integrations";
+import WhatsAppPage from "./pages/WhatsApp";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -85,6 +86,7 @@ function Router() {
       <Route path="/workqueue" component={WorkQueuePage} />
       <Route path="/meetings" component={MeetingsPage} />
       <Route path="/integrations" component={IntegrationsPage} />
+      <Route path="/whatsapp" component={WhatsAppPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
