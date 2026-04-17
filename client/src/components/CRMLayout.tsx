@@ -34,6 +34,7 @@ const navigationItems = [
   { label: "Metas",        path: "/goals",        icon: Trophy,          group: "analítica" },
   { label: "Informes",     path: "/reports",      icon: BarChart3,       group: "analítica" },
   { label: "Análisis",     path: "/analytics",    icon: TrendingUp,      group: "analítica" },
+  { label: "Automatizaciones", path: "/automations", icon: Zap,          group: "analítica" },
   { label: "Integraciones",path: "/integrations", icon: Zap,             group: "sistema" },
   { label: "Configuración",path: "/settings",     icon: Settings,        group: "sistema" },
 ];

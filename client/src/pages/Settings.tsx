@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Users, Settings, Target, Tag, Building2, Shield,
-  Plus, Edit, Trash2, GripVertical, Check, X, Mail, Loader2,
+  Plus, Edit, Trash2, GripVertical, Check, X, Mail, Loader2, Sliders,
 } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -504,6 +504,177 @@ function AuditTab() {
   );
 }
 
+// ── Custom Fields Tab ──────────────────────────────────────────────────────────
+
+const ENTITY_LABELS: Record<string, string> = {
+  lead: "Leads", contact: "Contactos", opportunity: "Oportunidades", company: "Empresas",
+};
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: "Texto", number: "Número", email: "Email", phone: "Teléfono",
+  date: "Fecha", select: "Lista", checkbox: "Checkbox", textarea: "Texto largo",
+};
+
+function CustomFieldsTab() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [entityType, setEntityType] = useState<"lead" | "contact" | "opportunity" | "company">("lead");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", label: "", type: "text" as any, required: false, options: "" });
+
+  const fieldsQuery = trpc.customFields.list.useQuery({ entityType });
+  const createMutation = trpc.customFields.create.useMutation({
+    onSuccess: () => { toast.success("Campo creado"); fieldsQuery.refetch(); setCreateOpen(false); setForm({ name: "", label: "", type: "text", required: false, options: "" }); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteMutation = trpc.customFields.delete.useMutation({
+    onSuccess: () => { toast.success("Campo eliminado"); fieldsQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const fields = fieldsQuery.data || [];
+
+  const handleCreate = () => {
+    if (!form.name || !form.label) { toast.error("Nombre y etiqueta son requeridos"); return; }
+    createMutation.mutate({
+      entityType,
+      name: form.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z_]/g, ""),
+      label: form.label,
+      type: form.type,
+      required: form.required,
+      options: form.type === "select" && form.options ? form.options.split(",").map(o => o.trim()).filter(Boolean) : undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Campos Personalizados</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Agrega campos adicionales a tus registros</p>
+        </div>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+            <Plus size={14} className="mr-1.5" />Nuevo Campo
+          </Button>
+        )}
+      </div>
+
+      {/* Entity selector */}
+      <div className="flex gap-2 flex-wrap">
+        {(["lead", "contact", "opportunity", "company"] as const).map(e => (
+          <button
+            key={e}
+            onClick={() => setEntityType(e)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${entityType === e ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+          >
+            {ENTITY_LABELS[e]}
+          </button>
+        ))}
+      </div>
+
+      {/* Fields list */}
+      <Card className="border-border/50">
+        <CardContent className="p-0">
+          {fields.length === 0 ? (
+            <div className="py-12 text-center">
+              <Sliders size={36} className="mx-auto text-muted-foreground/20 mb-3" />
+              <p className="text-muted-foreground text-sm">No hay campos personalizados para {ENTITY_LABELS[entityType]}</p>
+              {isAdmin && (
+                <Button size="sm" variant="outline" className="mt-3" onClick={() => setCreateOpen(true)}>
+                  <Plus size={13} className="mr-1" />Crear primer campo
+                </Button>
+              )}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 border-b border-border/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Etiqueta</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nombre interno</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tipo</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">Requerido</th>
+                  {isAdmin && <th className="px-4 py-3 w-10"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {fields.map((field: any) => (
+                  <tr key={field.id} className="border-b border-border/30 hover:bg-muted/20">
+                    <td className="px-4 py-3 font-medium">{field.label}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{field.name}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{FIELD_TYPE_LABELS[field.type] || field.type}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {field.required ? <Check size={14} className="text-green-500 mx-auto" /> : <X size={14} className="text-muted-foreground mx-auto" />}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <Button size="sm" variant="ghost" className="text-red-500 h-7 w-7 p-0"
+                          onClick={() => { if (confirm(`¿Eliminar campo "${field.label}"?`)) deleteMutation.mutate({ id: field.id }); }}>
+                          <Trash2 size={13} />
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create dialog */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo Campo — {ENTITY_LABELS[entityType]}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Etiqueta <span className="text-muted-foreground text-xs">(visible al usuario)</span></Label>
+              <Input placeholder="Ej: Número de RUC" value={form.label}
+                onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nombre interno <span className="text-muted-foreground text-xs">(solo letras y _)</span></Label>
+              <Input placeholder="Ej: numero_ruc" value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z_]/g, "") }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tipo de campo</Label>
+              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as any }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FIELD_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {form.type === "select" && (
+              <div className="space-y-1.5">
+                <Label>Opciones <span className="text-muted-foreground text-xs">(separadas por coma)</span></Label>
+                <Input placeholder="Opción 1, Opción 2, Opción 3" value={form.options}
+                  onChange={e => setForm(f => ({ ...f, options: e.target.value }))} />
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Switch checked={form.required} onCheckedChange={v => setForm(f => ({ ...f, required: v }))} />
+              <Label>Campo requerido</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={createMutation.isPending} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+              {createMutation.isPending ? "Creando..." : "Crear Campo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -530,6 +701,9 @@ export default function SettingsPage() {
             <TabsTrigger value="sources" className="gap-1.5">
               <Tag size={14} /> Fuentes
             </TabsTrigger>
+            <TabsTrigger value="fields" className="gap-1.5">
+              <Sliders size={14} /> Campos
+            </TabsTrigger>
             <TabsTrigger value="audit" className="gap-1.5">
               <Shield size={14} /> Auditoría
             </TabsTrigger>
@@ -540,6 +714,7 @@ export default function SettingsPage() {
             <TabsContent value="users"><UsersTab /></TabsContent>
             <TabsContent value="pipeline"><PipelineTab /></TabsContent>
             <TabsContent value="sources"><LeadSourcesTab /></TabsContent>
+            <TabsContent value="fields"><CustomFieldsTab /></TabsContent>
             <TabsContent value="audit"><AuditTab /></TabsContent>
           </div>
         </Tabs>
