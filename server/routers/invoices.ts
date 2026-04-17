@@ -29,6 +29,7 @@ export const invoicesRouter = router({
       opportunityId: z.number().optional(),
       contactId: z.number().optional(),
       companyId: z.number().optional(),
+      issueDate: z.string().optional(),
       dueDate: z.string().optional(),
       taxRate: z.number().min(0).max(100).default(19),
       notes: z.string().optional(),

@@ -2156,6 +2156,7 @@ export async function createInvoice(organizationId: number, userId: number, data
   opportunityId?: number;
   contactId?: number;
   companyId?: number;
+  issueDate?: string;
   dueDate?: string;
   taxRate?: number;
   notes?: string;
@@ -2168,7 +2169,7 @@ export async function createInvoice(organizationId: number, userId: number, data
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
   const number = `FAC-${Date.now()}`;
-  const issueDate = new Date().toISOString().split("T")[0];
+  const issueDate = data.issueDate ?? new Date().toISOString().split("T")[0];
 
   const r = await db.insert(invoices).values({
     organizationId,
