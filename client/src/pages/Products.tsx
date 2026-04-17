@@ -25,10 +25,12 @@ interface ProductForm {
   price: string;
   cost: string;
   sku: string;
+  stock: string;
+  minStock: string;
 }
 
 const emptyForm: ProductForm = {
-  name: "", description: "", category: "", price: "", cost: "", sku: "",
+  name: "", description: "", category: "", price: "", cost: "", sku: "", stock: "0", minStock: "0",
 };
 
 // ── Create/Edit Dialog ─────────────────────────────────────────────────────────
@@ -49,19 +51,34 @@ function ProductDialog({
     price: initial?.price ?? "",
     cost: initial?.cost ?? "",
     sku: initial?.sku ?? "",
+    stock: "0",
+    minStock: "0",
   });
 
   const set = (k: keyof ProductForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
   const createMut = trpc.products.create.useMutation({
-    onSuccess: () => { toast.success("Producto creado"); onSuccess(); onClose(); },
+    onSuccess: async (data) => {
+      // Si tiene stock inicial, registrarlo en inventario
+      if (Number(form.stock) > 0) {
+        await setStockMut.mutateAsync({
+          productId: data.id,
+          quantity: Number(form.stock),
+          minStock: Number(form.minStock) || 0,
+        });
+      }
+      toast.success("Producto creado");
+      onSuccess();
+      onClose();
+    },
     onError: (e) => toast.error(e.message),
   });
   const updateMut = trpc.products.update.useMutation({
     onSuccess: () => { toast.success("Producto actualizado"); onSuccess(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
+  const setStockMut = trpc.inventory.setStock.useMutation();
 
   const loading = createMut.isPending || updateMut.isPending;
 
@@ -116,6 +133,20 @@ function ProductDialog({
               <Label>Descripción</Label>
               <Textarea value={form.description} onChange={set("description")} placeholder="Descripción del producto..." rows={3} />
             </div>
+            {!isEdit && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Stock inicial</Label>
+                  <Input type="number" min="0" step="1" value={form.stock} onChange={set("stock")} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Unidades disponibles al crear</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Stock mínimo</Label>
+                  <Input type="number" min="0" step="1" value={form.minStock} onChange={set("minStock")} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Alerta cuando baje de este nivel</p>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
