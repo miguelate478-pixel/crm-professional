@@ -278,7 +278,7 @@ export default function IntegrationsPage() {
   const [selected, setSelected] = useState<Integration | null>(null);
   const [connected, setConnected] = useState<Record<string, boolean>>({});
 
-  const categories = [...new Set(INTEGRATIONS.map(i => i.category))];
+  const categories = Array.from(new Set(INTEGRATIONS.map(i => i.category)));
 
   return (
     <CRMLayout>

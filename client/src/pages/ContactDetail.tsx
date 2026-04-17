@@ -238,7 +238,7 @@ export default function ContactDetailPage() {
                         {(["llamada", "reunion", "visita", "email"] as const).map(t => (
                           <button
                             key={t}
-                            onClick={() => setActivityForm(f => ({ ...f, type: t }))}
+                            onClick={() => setActivityForm(f => ({ ...f, type: t as any }))}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${activityForm.type === t ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}
                           >
                             {t}

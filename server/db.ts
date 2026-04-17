@@ -1,14 +1,21 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq, and, desc, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, sql, like, or, lte } from "drizzle-orm";
 import {
   users, organizations, leads, contacts, companies,
   opportunities, tasks, activities, pipelines, stages,
   quotations, quotationItems, products, goals, auditLogs,
+  dashboardConfigs, dashboardWidgets, dashboardTemplates, dashboardShares,
+  teamsIntegrations, teamsChannels, teamsMessages,
+  inventory, inventoryMovements, invoices, invoiceItems, payments,
   type InsertUser, type InsertLead, type InsertContact,
   type InsertOpportunity, type InsertTask, type InsertQuotation,
   type InsertQuotationItem, type InsertCompany, type InsertProduct,
-  type InsertActivity,
+  type InsertActivity, type InsertDashboardConfig, type InsertDashboardWidget,
+  type InsertDashboardTemplate, type InsertDashboardShare,
+  type InsertTeamsIntegration, type InsertTeamsChannel, type InsertTeamsMessage,
+  type InsertInventory, type InsertInventoryMovement,
+  type InsertInvoice, type InsertInvoiceItem, type InsertPayment,
 } from "../drizzle/schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -429,6 +436,86 @@ export async function initDb() {
 
   await client.close();
   console.log("[DB] SQLite initialized at", DB_PATH);
+
+  // Run migrations for new tables
+  const migClient = createClient({ url: `file:${DB_PATH}` });
+  await migClient.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS inventory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      productId INTEGER NOT NULL,
+      quantity REAL NOT NULL DEFAULT 0,
+      minStock REAL DEFAULT 0,
+      maxStock REAL,
+      location TEXT,
+      updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      productId INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      previousStock REAL NOT NULL,
+      newStock REAL NOT NULL,
+      reason TEXT,
+      reference TEXT,
+      createdBy INTEGER NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      number TEXT NOT NULL,
+      quotationId INTEGER,
+      opportunityId INTEGER,
+      contactId INTEGER,
+      companyId INTEGER,
+      status TEXT NOT NULL DEFAULT 'borrador',
+      issueDate TEXT NOT NULL,
+      dueDate TEXT,
+      subtotal REAL NOT NULL DEFAULT 0,
+      taxRate REAL NOT NULL DEFAULT 19,
+      tax REAL NOT NULL DEFAULT 0,
+      discount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      paidAmount REAL NOT NULL DEFAULT 0,
+      notes TEXT,
+      terms TEXT,
+      createdBy INTEGER NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL,
+      updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoiceId INTEGER NOT NULL,
+      productId INTEGER,
+      description TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unitPrice REAL NOT NULL,
+      discount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      invoiceId INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      method TEXT NOT NULL,
+      reference TEXT,
+      notes TEXT,
+      paymentDate TEXT NOT NULL,
+      createdBy INTEGER NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+  `);
+  await migClient.close();
+  console.log("[DB] Migrations applied");
 }
 
 // ── USERS ─────────────────────────────────────────────────────────────────────
@@ -1197,7 +1284,7 @@ export async function updateAutomation(organizationId: number, id: number, data:
   const client = createClient({ url: `file:${DB_PATH}` });
   try {
     const sets = Object.entries(data).map(([k]) => `${k} = ?`).join(", ");
-    const vals = [...Object.values(data), id, organizationId];
+    const vals: any[] = [...Object.values(data), id, organizationId];
     await client.execute({ sql: `UPDATE automations SET ${sets} WHERE id = ? AND organizationId = ?`, args: vals });
     return { success: true };
   } finally { await client.close(); }
@@ -1489,4 +1576,691 @@ export async function findLeadByPhone(organizationId: number, phone: string) {
       or(eq(leads.phone, phone), eq(leads.phone, normalized))
     )).limit(1);
   return r[0] ?? null;
+}
+
+
+// ── GOOGLE CALENDAR ───────────────────────────────────────────────────────────
+
+export async function createGoogleCalendarIntegration(
+  organizationId: number,
+  userId: number,
+  data: {
+    googleCalendarId: string;
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: string;
+  }
+) {
+  const db = getDb();
+  const { googleCalendarIntegrations } = await import("../drizzle/schema");
+  
+  return db.insert(googleCalendarIntegrations).values({
+    organizationId,
+    userId,
+    googleCalendarId: data.googleCalendarId,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken || null,
+    expiresAt: data.expiresAt || null,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function getGoogleCalendarIntegration(organizationId: number, userId: number) {
+  const db = getDb();
+  const { googleCalendarIntegrations } = await import("../drizzle/schema");
+  
+  return db.select()
+    .from(googleCalendarIntegrations)
+    .where(and(
+      eq(googleCalendarIntegrations.organizationId, organizationId),
+      eq(googleCalendarIntegrations.userId, userId),
+      eq(googleCalendarIntegrations.isActive, true)
+    ))
+    .limit(1);
+}
+
+export async function updateGoogleCalendarIntegration(
+  integrationId: number,
+  data: Partial<{
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string;
+    syncedAt: string;
+    isActive: boolean;
+  }>
+) {
+  const db = getDb();
+  const { googleCalendarIntegrations } = await import("../drizzle/schema");
+  
+  return db.update(googleCalendarIntegrations)
+    .set({
+      ...data,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(googleCalendarIntegrations.id, integrationId));
+}
+
+export async function upsertGoogleCalendarEvent(data: {
+  organizationId: number;
+  integrationId: number;
+  googleEventId: string;
+  title: string;
+  description?: string | null;
+  startTime: string;
+  endTime?: string | null;
+  location?: string | null;
+  attendees?: string | null;
+  syncedAt?: string;
+}) {
+  const db = getDb();
+  const { googleCalendarEvents } = await import("../drizzle/schema");
+  
+  // Check if event exists
+  const existing = await db.select()
+    .from(googleCalendarEvents)
+    .where(eq(googleCalendarEvents.googleEventId, data.googleEventId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update
+    return db.update(googleCalendarEvents)
+      .set({
+        title: data.title,
+        description: data.description,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        location: data.location,
+        attendees: data.attendees,
+        syncedAt: data.syncedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(googleCalendarEvents.googleEventId, data.googleEventId));
+  } else {
+    // Insert
+    return db.insert(googleCalendarEvents).values({
+      organizationId: data.organizationId,
+      integrationId: data.integrationId,
+      googleEventId: data.googleEventId,
+      title: data.title,
+      description: data.description || null,
+      startTime: data.startTime,
+      endTime: data.endTime || null,
+      location: data.location || null,
+      attendees: data.attendees || null,
+      syncedAt: data.syncedAt || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+export async function getGoogleCalendarEvents(
+  organizationId: number,
+  integrationId: number,
+  opts: { limit?: number; offset?: number } = {}
+) {
+  const db = getDb();
+  const { googleCalendarEvents } = await import("../drizzle/schema");
+  const { limit = 50, offset = 0 } = opts;
+  
+  return db.select()
+    .from(googleCalendarEvents)
+    .where(and(
+      eq(googleCalendarEvents.organizationId, organizationId),
+      eq(googleCalendarEvents.integrationId, integrationId)
+    ))
+    .orderBy(desc(googleCalendarEvents.startTime))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function deleteGoogleCalendarEvent(organizationId: number, googleEventId: string) {
+  const db = getDb();
+  const { googleCalendarEvents } = await import("../drizzle/schema");
+  
+  return db.delete(googleCalendarEvents)
+    .where(and(
+      eq(googleCalendarEvents.organizationId, organizationId),
+      eq(googleCalendarEvents.googleEventId, googleEventId)
+    ));
+}
+
+
+// ── SAVED REPORTS ─────────────────────────────────────────────────────────────
+
+export async function getSavedReports(
+  organizationId: number,
+  opts: { limit?: number; offset?: number; folder?: string; search?: string } = {}
+) {
+  const db = getDb();
+  const { savedReports } = await import("../drizzle/schema");
+  const { limit = 50, offset = 0, folder, search } = opts;
+
+  const conditions: any[] = [eq(savedReports.organizationId, organizationId)];
+
+  if (folder && folder !== "Todos") {
+    conditions.push(eq(savedReports.folder, folder));
+  }
+
+  if (search) {
+    conditions.push(
+      or(
+        like(savedReports.name, `%${search}%`),
+        like(savedReports.description, `%${search}%`)
+      )
+    );
+  }
+
+  return db.select()
+    .from(savedReports)
+    .where(and(...conditions))
+    .orderBy(desc(savedReports.isStarred), desc(savedReports.updatedAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createSavedReport(
+  organizationId: number,
+  userId: number,
+  data: {
+    name: string;
+    description?: string;
+    type: "tabla" | "grafico" | "embudo";
+    folder?: string;
+    config?: any;
+  }
+) {
+  const db = getDb();
+  const { savedReports } = await import("../drizzle/schema");
+
+  return db.insert(savedReports).values({
+    organizationId,
+    createdBy: userId,
+    name: data.name,
+    description: data.description || null,
+    type: data.type,
+    folder: data.folder || "General",
+    config: data.config ? JSON.stringify(data.config) : null,
+    isStarred: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function updateSavedReport(
+  organizationId: number,
+  reportId: number,
+  data: Partial<{
+    name: string;
+    description: string;
+    type: "tabla" | "grafico" | "embudo";
+    folder: string;
+    config: any;
+    isStarred: boolean;
+  }>
+) {
+  const db = getDb();
+  const { savedReports } = await import("../drizzle/schema");
+
+  const updateData: any = { ...data };
+  if (data.config) {
+    updateData.config = JSON.stringify(data.config);
+  }
+  updateData.updatedAt = new Date().toISOString();
+
+  return db.update(savedReports)
+    .set(updateData)
+    .where(and(
+      eq(savedReports.organizationId, organizationId),
+      eq(savedReports.id, reportId)
+    ));
+}
+
+export async function deleteSavedReport(organizationId: number, reportId: number) {
+  const db = getDb();
+  const { savedReports } = await import("../drizzle/schema");
+
+  return db.delete(savedReports)
+    .where(and(
+      eq(savedReports.organizationId, organizationId),
+      eq(savedReports.id, reportId)
+    ));
+}
+
+export async function toggleReportStar(organizationId: number, reportId: number) {
+  const db = getDb();
+  const { savedReports } = await import("../drizzle/schema");
+
+  const report = await db.select()
+    .from(savedReports)
+    .where(and(
+      eq(savedReports.organizationId, organizationId),
+      eq(savedReports.id, reportId)
+    ))
+    .limit(1);
+
+  if (!report[0]) return null;
+
+  return db.update(savedReports)
+    .set({
+      isStarred: !report[0].isStarred,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(savedReports.id, reportId));
+}
+
+// ── SCHEDULED REPORTS ─────────────────────────────────────────────────────────
+
+export async function getScheduledReports(
+  organizationId: number,
+  opts: { limit?: number; offset?: number } = {}
+) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+  const { limit = 50, offset = 0 } = opts;
+
+  return db.select()
+    .from(scheduledReports)
+    .where(eq(scheduledReports.organizationId, organizationId))
+    .orderBy(desc(scheduledReports.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getScheduledReport(organizationId: number, id: number) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+
+  const result = await db.select()
+    .from(scheduledReports)
+    .where(and(
+      eq(scheduledReports.organizationId, organizationId),
+      eq(scheduledReports.id, id)
+    ))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function createScheduledReport(
+  organizationId: number,
+  userId: number,
+  data: {
+    reportId: string;
+    name: string;
+    frequency: "daily" | "weekly" | "monthly";
+    dayOfWeek?: number;
+    dayOfMonth?: number;
+    hour: number;
+    minute: number;
+    recipients: string[];
+    includeChart?: boolean;
+    format?: "csv" | "pdf";
+  }
+) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+  const { calculateNextRun } = await import("./_core/reportScheduling");
+
+  const nextRun = calculateNextRun(
+    data.frequency,
+    data.hour,
+    data.minute,
+    data.dayOfWeek,
+    data.dayOfMonth
+  );
+
+  return db.insert(scheduledReports).values({
+    organizationId,
+    createdBy: userId,
+    reportId: data.reportId,
+    name: data.name,
+    frequency: data.frequency,
+    dayOfWeek: data.dayOfWeek || null,
+    dayOfMonth: data.dayOfMonth || null,
+    hour: data.hour,
+    minute: data.minute,
+    recipients: JSON.stringify(data.recipients),
+    includeChart: data.includeChart !== false,
+    format: data.format || "pdf",
+    isActive: true,
+    nextRun,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function updateScheduledReport(
+  organizationId: number,
+  id: number,
+  data: Partial<{
+    name: string;
+    frequency: "daily" | "weekly" | "monthly";
+    dayOfWeek: number;
+    dayOfMonth: number;
+    hour: number;
+    minute: number;
+    recipients: string[];
+    includeChart: boolean;
+    format: "csv" | "pdf";
+    isActive: boolean;
+    lastRun: string;
+    nextRun: string;
+  }>
+) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+
+  const updateData: any = { ...data };
+  if (data.recipients) {
+    updateData.recipients = JSON.stringify(data.recipients);
+  }
+  updateData.updatedAt = new Date().toISOString();
+
+  return db.update(scheduledReports)
+    .set(updateData)
+    .where(and(
+      eq(scheduledReports.organizationId, organizationId),
+      eq(scheduledReports.id, id)
+    ));
+}
+
+export async function deleteScheduledReport(organizationId: number, id: number) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+
+  return db.delete(scheduledReports)
+    .where(and(
+      eq(scheduledReports.organizationId, organizationId),
+      eq(scheduledReports.id, id)
+    ));
+}
+
+export async function getScheduledReportsToRun(now: string) {
+  const db = getDb();
+  const { scheduledReports } = await import("../drizzle/schema");
+
+  return db.select()
+    .from(scheduledReports)
+    .where(and(
+      eq(scheduledReports.isActive, true),
+      lte(scheduledReports.nextRun, now)
+    ));
+}
+
+
+// ── INVENTORY ─────────────────────────────────────────────────────────────────
+
+export async function getInventoryList(organizationId: number, opts: { limit?: number; offset?: number; search?: string; lowStock?: boolean } = {}) {
+  const db = getDb();
+  const { limit = 50, offset = 0, search, lowStock } = opts;
+  // Get all inventory with product info
+  const rows = await db
+    .select({
+      id: inventory.id,
+      productId: inventory.productId,
+      quantity: inventory.quantity,
+      minStock: inventory.minStock,
+      maxStock: inventory.maxStock,
+      location: inventory.location,
+      updatedAt: inventory.updatedAt,
+      productName: products.name,
+      productSku: products.sku,
+      productCategory: products.category,
+      productPrice: products.price,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.productId, products.id))
+    .where(eq(inventory.organizationId, organizationId))
+    .orderBy(desc(inventory.updatedAt))
+    .limit(limit)
+    .offset(offset);
+
+  let data = rows;
+  if (search) {
+    const s = search.toLowerCase();
+    data = rows.filter(r => r.productName?.toLowerCase().includes(s) || r.productSku?.toLowerCase().includes(s));
+  }
+  if (lowStock) {
+    data = data.filter(r => r.minStock !== null && r.quantity <= (r.minStock ?? 0));
+  }
+  return { data, total: data.length };
+}
+
+export async function getInventoryByProduct(organizationId: number, productId: number) {
+  const db = getDb();
+  const rows = await db.select().from(inventory)
+    .where(and(eq(inventory.organizationId, organizationId), eq(inventory.productId, productId)))
+    .limit(1);
+  return rows[0] || null;
+}
+
+export async function upsertInventory(organizationId: number, productId: number, quantity: number, opts: { minStock?: number; maxStock?: number; location?: string } = {}) {
+  const db = getDb();
+  const existing = await getInventoryByProduct(organizationId, productId);
+  if (existing) {
+    await db.update(inventory).set({
+      quantity,
+      minStock: opts.minStock ?? existing.minStock,
+      maxStock: opts.maxStock ?? existing.maxStock,
+      location: opts.location ?? existing.location,
+      updatedAt: new Date().toISOString(),
+    }).where(and(eq(inventory.organizationId, organizationId), eq(inventory.productId, productId)));
+    return { id: existing.id };
+  } else {
+    const r = await db.insert(inventory).values({
+      organizationId,
+      productId,
+      quantity,
+      minStock: opts.minStock ?? 0,
+      maxStock: opts.maxStock ?? null,
+      location: opts.location ?? null,
+      updatedAt: new Date().toISOString(),
+    } as InsertInventory);
+    return { id: Number(r.lastInsertRowid) };
+  }
+}
+
+export async function createInventoryMovement(organizationId: number, userId: number, data: {
+  productId: number;
+  type: "entrada" | "salida" | "ajuste";
+  quantity: number;
+  reason?: string;
+  reference?: string;
+}) {
+  const db = getDb();
+  const existing = await getInventoryByProduct(organizationId, data.productId);
+  const previousStock = existing?.quantity ?? 0;
+  let newStock = previousStock;
+  if (data.type === "entrada") newStock = previousStock + data.quantity;
+  else if (data.type === "salida") newStock = Math.max(0, previousStock - data.quantity);
+  else newStock = data.quantity; // ajuste
+
+  // Update inventory
+  await upsertInventory(organizationId, data.productId, newStock);
+
+  // Record movement
+  const r = await db.insert(inventoryMovements).values({
+    organizationId,
+    productId: data.productId,
+    type: data.type,
+    quantity: data.quantity,
+    previousStock,
+    newStock,
+    reason: data.reason ?? null,
+    reference: data.reference ?? null,
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+  } as InsertInventoryMovement);
+
+  return { id: Number(r.lastInsertRowid), newStock };
+}
+
+export async function getInventoryMovements(organizationId: number, productId?: number, opts: { limit?: number; offset?: number } = {}) {
+  const db = getDb();
+  const { limit = 50, offset = 0 } = opts;
+  const conds: any[] = [eq(inventoryMovements.organizationId, organizationId)];
+  if (productId) conds.push(eq(inventoryMovements.productId, productId));
+  const rows = await db
+    .select({
+      id: inventoryMovements.id,
+      productId: inventoryMovements.productId,
+      type: inventoryMovements.type,
+      quantity: inventoryMovements.quantity,
+      previousStock: inventoryMovements.previousStock,
+      newStock: inventoryMovements.newStock,
+      reason: inventoryMovements.reason,
+      reference: inventoryMovements.reference,
+      createdAt: inventoryMovements.createdAt,
+      productName: products.name,
+      productSku: products.sku,
+    })
+    .from(inventoryMovements)
+    .leftJoin(products, eq(inventoryMovements.productId, products.id))
+    .where(and(...conds))
+    .orderBy(desc(inventoryMovements.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return rows;
+}
+
+// ── INVOICES ──────────────────────────────────────────────────────────────────
+
+export async function getInvoicesList(organizationId: number, opts: { limit?: number; offset?: number; status?: string } = {}) {
+  const db = getDb();
+  const { limit = 20, offset = 0, status } = opts;
+  const conds: any[] = [eq(invoices.organizationId, organizationId)];
+  if (status) conds.push(eq(invoices.status, status as any));
+  const [data, total] = await Promise.all([
+    db.select().from(invoices).where(and(...conds)).orderBy(desc(invoices.createdAt)).limit(limit).offset(offset),
+    db.select({ count: sql<number>`COUNT(*)` }).from(invoices).where(and(...conds)),
+  ]);
+  return { data, total: Number(total[0]?.count) || 0 };
+}
+
+export async function getInvoiceById(organizationId: number, id: number) {
+  const db = getDb();
+  const [invoice, items, paymentsList] = await Promise.all([
+    db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.organizationId, organizationId))).limit(1),
+    db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id)),
+    db.select().from(payments).where(and(eq(payments.invoiceId, id), eq(payments.organizationId, organizationId))),
+  ]);
+  if (!invoice[0]) return null;
+  return { ...invoice[0], items, payments: paymentsList };
+}
+
+export async function createInvoice(organizationId: number, userId: number, data: {
+  quotationId?: number;
+  opportunityId?: number;
+  contactId?: number;
+  companyId?: number;
+  dueDate?: string;
+  taxRate?: number;
+  notes?: string;
+  terms?: string;
+  items: { description: string; quantity: number; unitPrice: number; discount?: number; productId?: number }[];
+}) {
+  const db = getDb();
+  const taxRate = data.taxRate ?? 19;
+  const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice * (1 - (i.discount || 0) / 100), 0);
+  const tax = subtotal * (taxRate / 100);
+  const total = subtotal + tax;
+  const number = `FAC-${Date.now()}`;
+  const issueDate = new Date().toISOString().split("T")[0];
+
+  const r = await db.insert(invoices).values({
+    organizationId,
+    number,
+    quotationId: data.quotationId ?? null,
+    opportunityId: data.opportunityId ?? null,
+    contactId: data.contactId ?? null,
+    companyId: data.companyId ?? null,
+    status: "emitida",
+    issueDate,
+    dueDate: data.dueDate ?? null,
+    subtotal,
+    taxRate,
+    tax,
+    discount: 0,
+    total,
+    paidAmount: 0,
+    notes: data.notes ?? null,
+    terms: data.terms ?? null,
+    createdBy: userId,
+  } as InsertInvoice);
+
+  const invoiceId = Number(r.lastInsertRowid);
+
+  if (data.items.length > 0) {
+    await db.insert(invoiceItems).values(data.items.map(i => ({
+      invoiceId,
+      productId: i.productId ?? null,
+      description: i.description,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      discount: i.discount ?? 0,
+      total: i.quantity * i.unitPrice * (1 - (i.discount || 0) / 100),
+    })) as InsertInvoiceItem[]);
+  }
+
+  return { id: invoiceId, number };
+}
+
+export async function updateInvoice(organizationId: number, id: number, data: Partial<InsertInvoice>) {
+  const db = getDb();
+  await db.update(invoices).set({ ...data, updatedAt: new Date().toISOString() })
+    .where(and(eq(invoices.id, id), eq(invoices.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function deleteInvoice(organizationId: number, id: number) {
+  const db = getDb();
+  await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+  await db.delete(payments).where(and(eq(payments.invoiceId, id), eq(payments.organizationId, organizationId)));
+  await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function createPayment(organizationId: number, userId: number, data: {
+  invoiceId: number;
+  amount: number;
+  method: "efectivo" | "transferencia" | "tarjeta" | "cheque" | "otro";
+  reference?: string;
+  notes?: string;
+  paymentDate?: string;
+}) {
+  const db = getDb();
+  const r = await db.insert(payments).values({
+    organizationId,
+    invoiceId: data.invoiceId,
+    amount: data.amount,
+    method: data.method,
+    reference: data.reference ?? null,
+    notes: data.notes ?? null,
+    paymentDate: data.paymentDate ?? new Date().toISOString().split("T")[0],
+    createdBy: userId,
+  } as InsertPayment);
+
+  // Update paidAmount on invoice
+  const invoice = await getInvoiceById(organizationId, data.invoiceId);
+  if (invoice) {
+    const totalPaid = (invoice.paidAmount ?? 0) + data.amount;
+    const newStatus = totalPaid >= invoice.total ? "pagada" : invoice.status;
+    await db.update(invoices).set({
+      paidAmount: totalPaid,
+      status: newStatus as any,
+      updatedAt: new Date().toISOString(),
+    }).where(and(eq(invoices.id, data.invoiceId), eq(invoices.organizationId, organizationId)));
+  }
+
+  return { id: Number(r.lastInsertRowid) };
+}
+
+export async function getPaymentsByInvoice(organizationId: number, invoiceId: number) {
+  const db = getDb();
+  return db.select().from(payments)
+    .where(and(eq(payments.invoiceId, invoiceId), eq(payments.organizationId, organizationId)))
+    .orderBy(desc(payments.createdAt));
 }

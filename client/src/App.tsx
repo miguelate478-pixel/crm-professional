@@ -32,6 +32,13 @@ import WorkQueuePage from "./pages/WorkQueue";
 import MeetingsPage from "./pages/Meetings";
 import IntegrationsPage from "./pages/Integrations";
 import WhatsAppPage from "./pages/WhatsApp";
+import LeadScoringPage from "./pages/LeadScoring";
+import DeduplicationPage from "./pages/Deduplication";
+import SlackIntegrationPage from "./pages/SlackIntegration";
+import AdvancedReportsPage from "./pages/AdvancedReports";
+import ScheduledReportsPage from "./pages/ScheduledReports";
+import InventoryPage from "./pages/Inventory";
+import InvoicesPage from "./pages/Invoices";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -87,6 +94,13 @@ function Router() {
       <Route path="/meetings" component={MeetingsPage} />
       <Route path="/integrations" component={IntegrationsPage} />
       <Route path="/whatsapp" component={WhatsAppPage} />
+      <Route path="/lead-scoring" component={LeadScoringPage} />
+      <Route path="/deduplication" component={DeduplicationPage} />
+      <Route path="/slack" component={SlackIntegrationPage} />
+      <Route path="/advanced-reports" component={AdvancedReportsPage} />
+      <Route path="/scheduled-reports" component={ScheduledReportsPage} />
+      <Route path="/inventory" component={InventoryPage} />
+      <Route path="/invoices" component={InvoicesPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

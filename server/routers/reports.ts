@@ -38,4 +38,62 @@ export const reportsRouter = router({
     .query(async ({ ctx, input }) => {
       return db.getRecentActivities(ctx.user.organizationId, input.limit);
     }),
+
+  // ── Saved Reports ──────────────────────────────────────────────────────────
+
+  list: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().default(50),
+        offset: z.number().default(0),
+        folder: z.string().optional(),
+        search: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return db.getSavedReports(ctx.user.organizationId, input);
+    }),
+
+  create: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        type: z.enum(["tabla", "grafico", "embudo"]),
+        folder: z.string().optional(),
+        config: z.any().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return db.createSavedReport(ctx.user.organizationId, ctx.user.id, input);
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        type: z.enum(["tabla", "grafico", "embudo"]).optional(),
+        folder: z.string().optional(),
+        config: z.any().optional(),
+        isStarred: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return db.updateSavedReport(ctx.user.organizationId, id, data);
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return db.deleteSavedReport(ctx.user.organizationId, input.id);
+    }),
+
+  toggleStar: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return db.toggleReportStar(ctx.user.organizationId, input.id);
+    }),
 });

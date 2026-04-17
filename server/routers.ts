@@ -15,6 +15,14 @@ import { companiesRouter } from "./routers/companies";
 import { productsRouter } from "./routers/products";
 import { automationsRouter } from "./routers/automations";
 import { whatsappRouter } from "./routers/whatsapp";
+import { googleCalendarRouter } from "./routers/googleCalendar";
+import { leadScoringRouter } from "./routers/leadScoring";
+import { deduplicationRouter } from "./routers/deduplication";
+import { slackRouter } from "./routers/slack";
+import { advancedReportsRouter } from "./routers/advancedReports";
+import { scheduledReportsRouter } from "./routers/scheduledReports";
+import { inventoryRouter } from "./routers/inventory";
+import { invoicesRouter } from "./routers/invoices";
 import * as db from "./db";
 import { z } from "zod";
 
@@ -42,6 +50,14 @@ export const appRouter = router({
   products: productsRouter,
   automations: automationsRouter,
   whatsapp: whatsappRouter,
+  googleCalendar: googleCalendarRouter,
+  leadScoring: leadScoringRouter,
+  deduplication: deduplicationRouter,
+  slack: slackRouter,
+  advancedReports: advancedReportsRouter,
+  scheduledReports: scheduledReportsRouter,
+  inventory: inventoryRouter,
+  invoices: invoicesRouter,
 
   search: router({
     global: protectedProcedure
@@ -79,11 +95,11 @@ export const appRouter = router({
 
       // Leads
       await Promise.all([
-        db.createLead(orgId, userId, { firstName: "Carlos", lastName: "Mendoza", email: "carlos@techcorp.com", phone: "+57 300 111 2222", company: "TechCorp", jobTitle: "CEO", source: "Sitio Web", status: "calificado", score: 85 }),
+        db.createLead(orgId, userId, { firstName: "Carlos", lastName: "Mendoza", email: "carlos@techcorp.com", phone: "+57 300 111 2222", company: "TechCorp", jobTitle: "CEO", source: "Sitio Web", status: "contactado", score: 85 }),
         db.createLead(orgId, userId, { firstName: "Ana", lastName: "Rodríguez", email: "ana@innovate.com", phone: "+57 310 222 3333", company: "Innovate SAS", jobTitle: "CTO", source: "Referido", status: "contactado", score: 72 }),
         db.createLead(orgId, userId, { firstName: "Pedro", lastName: "García", email: "pedro@globalco.com", phone: "+57 320 333 4444", company: "GlobalCo", jobTitle: "Director", source: "Email", status: "nuevo", score: 55 }),
         db.createLead(orgId, userId, { firstName: "María", lastName: "López", email: "maria@startup.com", phone: "+57 315 444 5555", company: "StartupXYZ", jobTitle: "Fundadora", source: "Redes Sociales", status: "nuevo", score: 63 }),
-        db.createLead(orgId, userId, { firstName: "Luis", lastName: "Torres", email: "luis@enterprise.com", phone: "+57 305 555 6666", company: "Enterprise SA", jobTitle: "VP Ventas", source: "Sitio Web", status: "calificado", score: 91 }),
+        db.createLead(orgId, userId, { firstName: "Luis", lastName: "Torres", email: "luis@enterprise.com", phone: "+57 305 555 6666", company: "Enterprise SA", jobTitle: "VP Ventas", source: "Sitio Web", status: "contactado", score: 91 }),
       ]);
 
       // Contacts

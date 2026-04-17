@@ -138,7 +138,6 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("todos");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any | null>(null);
-  const confirm = useConfirm();
 
   const handleSearch = (v: string) => {
     setSearch(v);
@@ -162,13 +161,8 @@ export default function ProductsPage() {
   });
 
   const handleDelete = async (id: number, name: string) => {
-    const ok = await confirm({
-      title: "Eliminar producto",
-      description: `¿Eliminar "${name}"? Esta acción no se puede deshacer.`,
-      confirmText: "Eliminar",
-      variant: "destructive",
-    });
-    if (ok) deleteMut.mutate({ id });
+    if (!confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`)) return;
+    deleteMut.mutate({ id });
   };
 
   // Derive categories for filter

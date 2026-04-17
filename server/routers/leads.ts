@@ -2,13 +2,15 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 
+const leadStatusEnum = z.enum(["nuevo", "recontacto", "contactado", "no_efectivo", "conf_visita", "reprog_visita", "no_se_presento", "agendo_visita", "reciclado", "visita_no_asistida", "separacion", "venta"]);
+
 export const leadsRouter = router({
   list: protectedProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(20),
         offset: z.number().min(0).default(0),
-        status: z.enum(["nuevo", "contactado", "calificado", "descartado"]).optional(),
+        status: leadStatusEnum.optional(),
         assignedTo: z.number().optional(),
         search: z.string().optional(),
       })
@@ -31,7 +33,7 @@ export const leadsRouter = router({
         company: z.string().optional(),
         jobTitle: z.string().optional(),
         source: z.string().optional(),
-        status: z.enum(["nuevo", "contactado", "calificado", "descartado"]).default("nuevo"),
+        status: leadStatusEnum.default("nuevo"),
         score: z.number().min(0).max(100).default(0),
         notes: z.string().optional(),
         assignedTo: z.number().optional(),
@@ -52,7 +54,7 @@ export const leadsRouter = router({
         company: z.string().optional(),
         jobTitle: z.string().optional(),
         source: z.string().optional(),
-        status: z.enum(["nuevo", "contactado", "calificado", "descartado"]).optional(),
+        status: leadStatusEnum.optional(),
         score: z.number().min(0).max(100).optional(),
         assignedTo: z.number().optional(),
         notes: z.string().optional(),

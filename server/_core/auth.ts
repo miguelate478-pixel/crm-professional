@@ -231,10 +231,10 @@ export function registerAuthRoutes(app: Express) {
         const db = await import("../db");
         await db.logAudit({
           organizationId: user.organizationId,
-          userId: user.id,
+          userId: user.id as number,
           action: "login",
           entityType: "user",
-          entityId: user.id,
+          entityId: user.id as number,
           ipAddress: ip,
         });
         await db.updateLastSignedIn(user.openId);
@@ -276,7 +276,7 @@ export function registerAuthRoutes(app: Express) {
           email: DEV_USER.email ?? "admin@crmpro.local",
           loginMethod: "dev",
           role: "admin",
-          lastSignedIn: new Date().toISOString() as any,
+          lastSignedIn: new Date().toISOString(),
         });
       } catch (e) {
         console.log("[DevLogin] DB upsert skipped:", e);
@@ -482,14 +482,18 @@ export function registerAuthRoutes(app: Express) {
       if (user.role !== "admin") { res.status(403).json({ error: "Solo administradores pueden invitar usuarios" }); return; }
 
       const { email, role = "user" } = req.body || {};
-      if (!email?.trim()) { res.status(400).json({ error: "Email requerido" }); return; }
+      if (!email || typeof email !== "string" || !email.trim()) { res.status(400).json({ error: "Email requerido" }); return; }
 
       const db = await import("../db");
       const org = await db.getOrganizationById(user.organizationId);
-      const token = await db.createTeamInvitation(user.organizationId, email, role, user.id);
-      await sendInvitationEmail(email, user.name ?? "El administrador", org?.name ?? "tu empresa", token);
+      const emailTrimmed = email.trim();
+      const roleStr: string = typeof role === "string" ? role : "user";
+      const token = await db.createTeamInvitation(user.organizationId, emailTrimmed, roleStr, user.id as number);
+      const userName = typeof user.name === "string" ? user.name : "El administrador";
+      const orgName = typeof org?.name === "string" ? org.name : "tu empresa";
+      await sendInvitationEmail(emailTrimmed, userName, orgName, token);
 
-      res.json({ success: true, message: `Invitación enviada a ${email}` });
+      res.json({ success: true, message: `Invitación enviada a ${emailTrimmed}` });
     } catch (err) {
       console.error("[Invite] Error:", err);
       res.status(500).json({ error: "Error interno" });

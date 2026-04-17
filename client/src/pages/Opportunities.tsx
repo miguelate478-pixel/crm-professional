@@ -10,9 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, MoreHorizontal, DollarSign, Calendar, User, Target,
   AlertCircle, Edit, Trash2, Eye, LayoutGrid, List, Loader2, RefreshCw,
-  Download, Search, Filter, X,
+  Download, Search, Filter, X, GripVertical,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -126,7 +126,21 @@ function NewOpportunityDialog({ open, onClose, onSuccess, pipelineId }: {
 
 // ── Kanban Card ────────────────────────────────────────────────────────────────
 
-function KanbanCard({ opp, onDelete, onRefetch, onClick }: { opp: any; onDelete: () => void; onRefetch: () => void; onClick: () => void }) {
+function KanbanCard({ 
+  opp, 
+  onDelete, 
+  onRefetch, 
+  onClick,
+  isDragging,
+  onDragStart,
+}: { 
+  opp: any; 
+  onDelete: () => void; 
+  onRefetch: () => void; 
+  onClick: () => void;
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+}) {
   const moveStage = trpc.opportunities.moveStage.useMutation({
     onSuccess: () => { toast.success("Etapa actualizada"); onRefetch(); },
     onError: (e) => toast.error("Error: " + e.message),
@@ -136,7 +150,11 @@ function KanbanCard({ opp, onDelete, onRefetch, onClick }: { opp: any; onDelete:
 
   return (
     <div
-      className={`bg-card border rounded-xl p-4 hover:shadow-md transition-all duration-200 cursor-pointer group ${isStale ? "border-amber-300 dark:border-amber-700" : "border-border/50"}`}
+      draggable
+      onDragStart={onDragStart}
+      className={`bg-card border rounded-xl p-4 transition-all duration-200 group ${
+        isDragging ? "opacity-50 scale-95 shadow-lg" : "hover:shadow-md cursor-grab active:cursor-grabbing"
+      } ${isStale ? "border-amber-300 dark:border-amber-700" : "border-border/50"}`}
       onClick={onClick}
     >
       {isStale && (
@@ -145,7 +163,10 @@ function KanbanCard({ opp, onDelete, onRefetch, onClick }: { opp: any; onDelete:
         </div>
       )}
       <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-sm leading-snug flex-1">{opp.name}</p>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <GripVertical size={14} className="text-muted-foreground/40 mt-0.5 flex-shrink-0" />
+          <p className="font-semibold text-sm leading-snug flex-1 break-words">{opp.name}</p>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={e => e.stopPropagation()}>
@@ -167,7 +188,7 @@ function KanbanCard({ opp, onDelete, onRefetch, onClick }: { opp: any; onDelete:
       {opp.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{opp.description}</p>}
       <div className="mt-3">
         <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-          {opp.amount ? `$${Number(opp.amount).toLocaleString()}` : "Sin monto"}
+          {opp.amount ? `${Number(opp.amount).toLocaleString()}` : "Sin monto"}
         </p>
         <ProbabilityBar value={opp.probability ?? 0} />
       </div>
@@ -181,6 +202,70 @@ function KanbanCard({ opp, onDelete, onRefetch, onClick }: { opp: any; onDelete:
   );
 }
 
+// ── Kanban Column ──────────────────────────────────────────────────────────────
+
+function KanbanColumn({
+  stage,
+  opps,
+  onDelete,
+  onRefetch,
+  onCardClick,
+  onDragOver,
+  onDrop,
+  draggedOppId,
+}: {
+  stage: typeof DEFAULT_STAGES[0];
+  opps: any[];
+  onDelete: (id: number) => void;
+  onRefetch: () => void;
+  onCardClick: (opp: any) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, stageId: number) => void;
+  draggedOppId: number | null;
+}) {
+  const total = opps.reduce((s, o) => s + (Number(o.amount) || 0), 0);
+
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDrop={(e) => onDrop(e, stage.id)}
+      className="flex-shrink-0 w-72"
+    >
+      <div className="rounded-xl border border-border/50 overflow-hidden h-full flex flex-col">
+        <div className={`px-4 py-3 ${stage.light} border-b border-border/30`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
+              <span className={`font-semibold text-sm ${stage.text}`}>{stage.name}</span>
+            </div>
+            <span className="text-xs bg-background/50 px-2 py-0.5 rounded-full">{opps.length}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">${total.toLocaleString()}</p>
+        </div>
+        <div className="p-3 space-y-3 min-h-[400px] bg-muted/20 flex-1 overflow-y-auto">
+          {opps.map(opp => (
+            <KanbanCard
+              key={opp.id}
+              opp={opp}
+              onRefetch={onRefetch}
+              onClick={() => onCardClick(opp)}
+              isDragging={draggedOppId === opp.id}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("opportunityId", String(opp.id));
+              }}
+              onDelete={() => onDelete(opp.id)}
+            />
+          ))}
+          {opps.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground/40 text-xs">Sin oportunidades</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function OpportunitiesPage() {
@@ -188,6 +273,7 @@ export default function OpportunitiesPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [stageFilter, setStageFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [draggedOppId, setDraggedOppId] = useState<number | null>(null);
   const [, navigate] = useLocation();
   const { confirm } = useConfirm();
 
@@ -206,12 +292,37 @@ export default function OpportunitiesPage() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 
+  const moveStage = trpc.opportunities.moveStage.useMutation({
+    onSuccess: () => { toast.success("Oportunidad movida"); refetch(); },
+    onError: (e) => toast.error("Error: " + e.message),
+  });
+
   const totalPipeline = rawOpps.reduce((s, o) => s + (Number(o.amount) || 0), 0);
   const weighted = rawOpps.reduce((s, o) => s + (Number(o.amount) || 0) * (o.probability ?? 0) / 100, 0);
 
   const { data: pipelinesData } = trpc.opportunities.getPipelines.useQuery();
-  // Use first available pipeline or default to 1
   const PIPELINE_ID = pipelinesData?.[0]?.id ?? 1;
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, stageId: number) => {
+    e.preventDefault();
+    const oppId = Number(e.dataTransfer.getData("opportunityId"));
+    const opp = rawOpps.find(o => o.id === oppId);
+    
+    if (opp && opp.stageId !== stageId) {
+      moveStage.mutate({ id: oppId, stageId });
+    }
+    setDraggedOppId(null);
+  };
+
+  const handleDeleteOpp = async (id: number) => {
+    const ok = await confirm({ title: "¿Eliminar oportunidad?", description: "Esta acción no se puede deshacer.", confirmText: "Eliminar", variant: "destructive" });
+    if (ok) deleteOpp.mutate({ id });
+  };
 
   return (
     <CRMLayout>
@@ -308,39 +419,18 @@ export default function OpportunitiesPage() {
           <div className="flex gap-4 overflow-x-auto pb-4">
             {DEFAULT_STAGES.map(stage => {
               const stageOpps = opps.filter(o => o.stageId === stage.id);
-              const total = stageOpps.reduce((s, o) => s + (Number(o.amount) || 0), 0);
               return (
-                <div key={stage.id} className="flex-shrink-0 w-72">
-                  <div className="rounded-xl border border-border/50 overflow-hidden">
-                    <div className={`px-4 py-3 ${stage.light} border-b border-border/30`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
-                          <span className={`font-semibold text-sm ${stage.text}`}>{stage.name}</span>
-                        </div>
-                        <span className="text-xs bg-background/50 px-2 py-0.5 rounded-full">{stageOpps.length}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">${total.toLocaleString()}</p>
-                    </div>
-                    <div className="p-3 space-y-3 min-h-[300px] bg-muted/20">
-                      {stageOpps.map(opp => (
-                        <KanbanCard
-                          key={opp.id}
-                          opp={opp}
-                          onRefetch={refetch}
-                          onClick={() => navigate(`/opportunities/${opp.id}`)}
-                          onDelete={async () => {
-                            const ok = await confirm({ title: "¿Eliminar oportunidad?", description: "Esta acción no se puede deshacer.", confirmText: "Eliminar", variant: "destructive" });
-                            if (ok) deleteOpp.mutate({ id: opp.id });
-                          }}
-                        />
-                      ))}
-                      {stageOpps.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground/40 text-xs">Sin oportunidades</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <KanbanColumn
+                  key={stage.id}
+                  stage={stage}
+                  opps={stageOpps}
+                  onDelete={handleDeleteOpp}
+                  onRefetch={refetch}
+                  onCardClick={(opp) => navigate(`/opportunities/${opp.id}`)}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  draggedOppId={draggedOppId}
+                />
               );
             })}
           </div>
@@ -374,7 +464,7 @@ export default function OpportunitiesPage() {
                         </td>
                         <td className="py-4 px-4">
                           <span className="font-bold text-blue-600 dark:text-blue-400">
-                            {opp.amount ? `$${Number(opp.amount).toLocaleString()}` : "—"}
+                            {opp.amount ? `${Number(opp.amount).toLocaleString()}` : "—"}
                           </span>
                         </td>
                         <td className="py-4 px-4 hidden lg:table-cell w-32"><ProbabilityBar value={opp.probability ?? 0} /></td>
@@ -390,9 +480,9 @@ export default function OpportunitiesPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem><Eye size={13} className="mr-2" /> Ver detalle</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={async () => {
-                                const ok = await confirm({ title: "¿Eliminar oportunidad?", description: "Esta acción no se puede deshacer.", confirmText: "Eliminar", variant: "destructive" });
-                                if (ok) deleteOpp.mutate({ id: opp.id });
+                              <DropdownMenuItem className="text-destructive" onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleDeleteOpp(opp.id);
                               }}>
                                 <Trash2 size={13} className="mr-2" /> Eliminar
                               </DropdownMenuItem>

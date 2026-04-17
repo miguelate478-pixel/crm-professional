@@ -25,13 +25,13 @@ import { validateEmail, validateRequired, validatePhone } from "@/lib/validation
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type LeadStatus = "nuevo" | "contactado" | "calificado" | "descartado";
+type LeadStatus = "nuevo" | "recontacto" | "contactado" | "no_efectivo" | "conf_visita" | "reprog_visita" | "no_se_presento" | "agendo_visita" | "reciclado" | "visita_no_asistida" | "separacion" | "venta";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   nuevo:       { label: "Nuevo",       className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   contactado:  { label: "Contactado",  className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  calificado:  { label: "Calificado",  className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-  descartado:  { label: "Descartado",  className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+  venta:       { label: "Venta",       className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  recontacto:  { label: "Recontacto",  className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
 };
 
 function ScoreBadge({ score }: { score: number }) {
@@ -446,7 +446,7 @@ export default function LeadsPage() {
     total,
     nuevo:      leads.filter(l => l.status === "nuevo").length,
     contactado: leads.filter(l => l.status === "contactado").length,
-    calificado: leads.filter(l => l.status === "calificado").length,
+    venta:      leads.filter(l => l.status === "venta").length,
   };
 
   const clearFilters = () => { setSearch(""); setStatusFilter("all"); setPage(0); };
@@ -594,7 +594,7 @@ export default function LeadsPage() {
             { label: "Total Leads",  value: counts.total,      icon: Users,     color: "text-blue-500" },
             { label: "Nuevos",       value: counts.nuevo,      icon: TrendingUp, color: "text-indigo-500" },
             { label: "Contactados",  value: counts.contactado, icon: Mail,      color: "text-amber-500" },
-            { label: "Calificados",  value: counts.calificado, icon: UserCheck, color: "text-emerald-500" },
+            { label: "Ventas",       value: counts.venta,      icon: UserCheck, color: "text-emerald-500" },
           ].map(s => (
             <Card key={s.label} className="border-border/50">
               <CardContent className="p-4 flex items-center gap-3">

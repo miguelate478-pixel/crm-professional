@@ -27,6 +27,8 @@ const navigationItems = [
   { label: "WhatsApp",     path: "/whatsapp",     icon: MessageCircle,   group: "actividad" },
   { label: "Cotizaciones", path: "/quotes",       icon: FileText,        group: "actividad" },
   { label: "Productos",    path: "/products",     icon: Package,         group: "actividad" },
+  { label: "Inventario",   path: "/inventory",    icon: Package,         group: "actividad" },
+  { label: "Facturas",     path: "/invoices",     icon: DollarSign,      group: "actividad" },
   { label: "Metas",        path: "/goals",        icon: Trophy,          group: "analítica" },
   { label: "Informes",     path: "/reports",      icon: BarChart3,       group: "analítica" },
   { label: "Análisis",     path: "/analytics",    icon: TrendingUp,      group: "analítica" },

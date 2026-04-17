@@ -273,7 +273,7 @@ export default function WhatsAppPage() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-5 space-y-1"
-                style={{ backgroundImage: "radial-gradient(circle, hsl(var(--muted)) 1px, transparent 1px)", backgroundSize: "20px 20px", backgroundOpacity: 0.3 }}>
+                style={{ backgroundImage: "radial-gradient(circle, hsl(var(--muted)) 1px, transparent 1px)", backgroundSize: "20px 20px", opacity: 0.3 }}>
                 {(messages as any[]).length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-sm text-muted-foreground">Sin mensajes aún. Envía el primero.</p>

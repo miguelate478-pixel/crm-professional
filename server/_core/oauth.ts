@@ -44,7 +44,7 @@ export function registerOAuthRoutes(app: Express) {
           email: devEmail,
           loginMethod: "dev",
           role: "admin",
-          lastSignedIn: new Date(),
+          lastSignedIn: new Date().toISOString(),
         });
 
         // Create a valid session JWT
@@ -110,7 +110,7 @@ export function registerOAuthRoutes(app: Express) {
         name: userInfo.name || null,
         email: userInfo.email ?? null,
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-        lastSignedIn: new Date(),
+        lastSignedIn: new Date().toISOString(),
       });
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {

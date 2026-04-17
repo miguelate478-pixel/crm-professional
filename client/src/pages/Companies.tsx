@@ -157,7 +157,6 @@ export default function CompaniesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any | null>(null);
-  const confirm = useConfirm();
 
   // Debounce search
   const handleSearch = (v: string) => {
@@ -178,13 +177,8 @@ export default function CompaniesPage() {
   });
 
   const handleDelete = async (id: number, name: string) => {
-    const ok = await confirm({
-      title: "Eliminar empresa",
-      description: `¿Eliminar "${name}"? Esta acción no se puede deshacer.`,
-      confirmText: "Eliminar",
-      variant: "destructive",
-    });
-    if (ok) deleteMut.mutate({ id });
+    if (!confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`)) return;
+    deleteMut.mutate({ id });
   };
 
   const handleExportCSV = () => {

@@ -1,38 +1,87 @@
 /**
- * Email service using Resend.
- * Falls back to console.log if RESEND_API_KEY is not set (dev mode).
+ * Email service using Resend, Gmail, or SMTP.
+ * Falls back to console.log if no email service is configured (dev mode).
  */
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+import { ENV } from "./env";
+import nodemailer from "nodemailer";
+
+const RESEND_API_KEY = ENV.resendApiKey;
 const FROM_EMAIL = process.env.FROM_EMAIL || "CRM Pro <noreply@crmpro.app>";
 const APP_URL = process.env.APP_URL || "https://crm-professional-production.up.railway.app";
 
+// ── SMTP Transporter ──────────────────────────────────────────────────────────
+
+let smtpTransporter: nodemailer.Transporter | null = null;
+
+function getSMTPTransporter() {
+  if (smtpTransporter) return smtpTransporter;
+
+  if (!ENV.smtpHost || !ENV.smtpUser || !ENV.smtpPassword) {
+    return null;
+  }
+
+  smtpTransporter = nodemailer.createTransport({
+    host: ENV.smtpHost,
+    port: ENV.smtpPort,
+    secure: ENV.smtpPort === 465,
+    auth: {
+      user: ENV.smtpUser,
+      pass: ENV.smtpPassword,
+    },
+  });
+
+  return smtpTransporter;
+}
+
+// ── Main Send Email Function ──────────────────────────────────────────────────
+
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  if (!RESEND_API_KEY) {
-    console.log(`[Email] No RESEND_API_KEY — would send to ${to}: ${subject}`);
-    return true; // silently succeed in dev
-  }
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("[Email] Resend error:", err);
-      return false;
+  // Try SMTP first
+  const smtpTransporter = getSMTPTransporter();
+  if (smtpTransporter) {
+    try {
+      await smtpTransporter.sendMail({
+        from: ENV.smtpFromEmail,
+        to,
+        subject,
+        html,
+      });
+      console.log(`[Email] Sent via SMTP to ${to}`);
+      return true;
+    } catch (e) {
+      console.error("[Email] SMTP send error:", e);
+      // Fall through to Resend
     }
-    return true;
-  } catch (e) {
-    console.error("[Email] Send error:", e);
-    return false;
   }
+
+  // Try Resend
+  if (RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("[Email] Resend error:", err);
+        return false;
+      }
+      console.log(`[Email] Sent via Resend to ${to}`);
+      return true;
+    } catch (e) {
+      console.error("[Email] Resend send error:", e);
+    }
+  }
+
+  // Dev mode fallback
+  console.log(`[Email] No email service configured — would send to ${to}: ${subject}`);
+  return true;
 }
 
 // ── Password Reset ────────────────────────────────────────────────────────────
