@@ -158,7 +158,7 @@ function PaymentDialog({
   onSuccess,
 }: {
   open: boolean;
-  invoiceId: string;
+  invoiceId: number;
   maxAmount: number;
   onClose: () => void;
   onSuccess: () => void;
@@ -194,7 +194,7 @@ function PaymentDialog({
       return;
     }
     addPayment.mutate({
-      id: invoiceId,
+      invoiceId: Number(invoiceId),
       amount: amt,
       method,
       reference,
@@ -369,18 +369,16 @@ function CreateInvoiceView({
     createInvoice.mutate({
       issueDate,
       dueDate: dueDate || undefined,
-      contactId: contactId || undefined,
+      contactId: contactId ? Number(contactId) : undefined,
       notes: notes || undefined,
       terms: terms || undefined,
-      status: emit ? "emitida" : "borrador",
       taxRate: TAX_RATE,
       items: validItems.map((i) => ({
         description: i.description,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         discount: i.discount,
-        total: calcItemTotal(i),
-        productId: i.productId,
+        productId: i.productId ? Number(i.productId) : undefined,
       })),
     });
   };
@@ -749,7 +747,7 @@ function InvoiceDetailView({
   onBack,
   onRefresh,
 }: {
-  invoiceId: string;
+  invoiceId: number;
   onBack: () => void;
   onRefresh: () => void;
 }) {
@@ -1244,7 +1242,7 @@ function InvoiceDetailView({
 
 export default function InvoicesPage() {
   const [view, setView] = useState<"list" | "create" | "detail">("list");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { confirm } = useConfirm();
