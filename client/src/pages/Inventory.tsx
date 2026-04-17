@@ -106,7 +106,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -115,10 +115,16 @@ export default function InventoryPage() {
             Stock y movimientos de todos tus productos
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { inventoryQuery.refetch(); productsQuery.refetch(); }}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.location.href = "/products"}>
+            <Package className="w-4 h-4 mr-2" />
+            Ir a Productos
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { inventoryQuery.refetch(); productsQuery.refetch(); }}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
