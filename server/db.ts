@@ -8,6 +8,7 @@ import {
   dashboardConfigs, dashboardWidgets, dashboardTemplates, dashboardShares,
   teamsIntegrations, teamsChannels, teamsMessages,
   inventory, inventoryMovements, invoices, invoiceItems, payments,
+  gmailIntegrations,
   type InsertUser, type InsertLead, type InsertContact,
   type InsertOpportunity, type InsertTask, type InsertQuotation,
   type InsertQuotationItem, type InsertCompany, type InsertProduct,
@@ -16,6 +17,7 @@ import {
   type InsertTeamsIntegration, type InsertTeamsChannel, type InsertTeamsMessage,
   type InsertInventory, type InsertInventoryMovement,
   type InsertInvoice, type InsertInvoiceItem, type InsertPayment,
+  type InsertGmailIntegration,
 } from "../drizzle/schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -512,6 +514,17 @@ export async function initDb() {
       paymentDate TEXT NOT NULL,
       createdBy INTEGER NOT NULL,
       createdAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gmail_integrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      userId INTEGER NOT NULL,
+      accessToken TEXT NOT NULL,
+      refreshToken TEXT,
+      expiresAt TEXT,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL,
+      updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
     );
   `);
   await migClient.close();
@@ -2264,4 +2277,47 @@ export async function getPaymentsByInvoice(organizationId: number, invoiceId: nu
   return db.select().from(payments)
     .where(and(eq(payments.invoiceId, invoiceId), eq(payments.organizationId, organizationId)))
     .orderBy(desc(payments.createdAt));
+}
+
+// ── GMAIL INTEGRATION ─────────────────────────────────────────────────────────
+
+export async function getGmailIntegration(organizationId: number, userId: number) {
+  const db = getDb();
+  const rows = await db.select().from(gmailIntegrations)
+    .where(and(eq(gmailIntegrations.organizationId, organizationId), eq(gmailIntegrations.userId, userId)))
+    .limit(1);
+  return rows[0] || null;
+}
+
+export async function upsertGmailIntegration(organizationId: number, userId: number, data: {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+}) {
+  const db = getDb();
+  const existing = await getGmailIntegration(organizationId, userId);
+  if (existing) {
+    await db.update(gmailIntegrations).set({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken ?? existing.refreshToken,
+      expiresAt: data.expiresAt ?? existing.expiresAt,
+      updatedAt: new Date().toISOString(),
+    }).where(and(eq(gmailIntegrations.organizationId, organizationId), eq(gmailIntegrations.userId, userId)));
+    return existing;
+  }
+  const r = await db.insert(gmailIntegrations).values({
+    organizationId,
+    userId,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken ?? null,
+    expiresAt: data.expiresAt ?? null,
+  } as InsertGmailIntegration);
+  return { id: Number(r.lastInsertRowid) };
+}
+
+export async function deleteGmailIntegration(organizationId: number, userId: number) {
+  const db = getDb();
+  await db.delete(gmailIntegrations)
+    .where(and(eq(gmailIntegrations.organizationId, organizationId), eq(gmailIntegrations.userId, userId)));
+  return { success: true };
 }

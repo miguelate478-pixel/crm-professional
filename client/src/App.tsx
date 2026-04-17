@@ -39,6 +39,7 @@ import AdvancedReportsPage from "./pages/AdvancedReports";
 import ScheduledReportsPage from "./pages/ScheduledReports";
 import InventoryPage from "./pages/Inventory";
 import InvoicesPage from "./pages/Invoices";
+import GmailPage from "./pages/Gmail";
 import { Loader2 } from "lucide-react";
 
 function Router() {
@@ -101,6 +102,7 @@ function Router() {
       <Route path="/scheduled-reports" component={ScheduledReportsPage} />
       <Route path="/inventory" component={InventoryPage} />
       <Route path="/invoices" component={InvoicesPage} />
+      <Route path="/gmail" component={GmailPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

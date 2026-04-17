@@ -4,7 +4,7 @@ import {
   BarChart3, CheckSquare, ChevronLeft, ChevronRight,
   FileText, LayoutDashboard, LogOut, Moon, Settings, Sun,
   Target, Users, Building2, Bell, Search, TrendingUp, Trophy,
-  User, DollarSign, AlertCircle, Clock, Package, Menu, Inbox, Video, Zap, MessageCircle,
+  User, DollarSign, AlertCircle, Clock, Package, Menu, Inbox, Video, Zap, MessageCircle, Mail,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -25,6 +25,7 @@ const navigationItems = [
   { label: "Tareas",       path: "/tasks",        icon: CheckSquare,     group: "actividad" },
   { label: "Reuniones",    path: "/meetings",     icon: Video,           group: "actividad" },
   { label: "WhatsApp",     path: "/whatsapp",     icon: MessageCircle,   group: "actividad" },
+  { label: "Gmail",        path: "/gmail",        icon: Mail,            group: "actividad" },
   { label: "Cotizaciones", path: "/quotes",       icon: FileText,        group: "actividad" },
   { label: "Productos",    path: "/products",     icon: Package,         group: "actividad" },
   { label: "Inventario",   path: "/inventory",    icon: Package,         group: "actividad" },

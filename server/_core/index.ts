@@ -93,6 +93,18 @@ async function startServer() {
     }
   });
 
+  // Gmail OAuth callback
+  app.get("/api/gmail/callback", async (req, res) => {
+    const code = req.query.code as string;
+    const state = req.query.state as string;
+    if (!code) {
+      res.redirect("/?error=gmail_no_code");
+      return;
+    }
+    // Redirect to frontend with code to complete via tRPC
+    res.redirect(`/integrations?gmail_code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || "")}`);
+  });
+
   // Auth routes (dev-login, logout)
   registerAuthRoutes(app);
 

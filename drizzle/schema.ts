@@ -570,6 +570,21 @@ export const dashboardShares = sqliteTable("dashboard_shares", {
   userIdx: index("share_user_idx").on(t.sharedWith),
 }));
 
+// ── GMAIL INTEGRATION ─────────────────────────────────────────────────────────
+
+export const gmailIntegrations = sqliteTable("gmail_integrations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationId: integer("organizationId").notNull(),
+  userId: integer("userId").notNull(),
+  accessToken: text("accessToken").notNull(),
+  refreshToken: text("refreshToken"),
+  expiresAt: text("expiresAt"),
+  createdAt: text("createdAt").default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text("updatedAt").default(sql`(datetime('now'))`).notNull(),
+}, t => ({
+  orgUserIdx: index("gmail_org_user_idx").on(t.organizationId, t.userId),
+}));
+
 // ── INVENTORY ─────────────────────────────────────────────────────────────────
 
 export const inventory = sqliteTable("inventory", {
@@ -717,6 +732,8 @@ export type InvoiceItem = typeof invoiceItems.$inferSelect;
 export type InsertInvoiceItem = typeof invoiceItems.$inferInsert;
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = typeof payments.$inferInsert;
+export type GmailIntegration = typeof gmailIntegrations.$inferSelect;
+export type InsertGmailIntegration = typeof gmailIntegrations.$inferInsert;
 export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
 export type InsertDashboardWidget = typeof dashboardWidgets.$inferInsert;
 export type DashboardTemplate = typeof dashboardTemplates.$inferSelect;

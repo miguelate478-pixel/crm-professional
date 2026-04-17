@@ -23,6 +23,8 @@ import { advancedReportsRouter } from "./routers/advancedReports";
 import { scheduledReportsRouter } from "./routers/scheduledReports";
 import { inventoryRouter } from "./routers/inventory";
 import { invoicesRouter } from "./routers/invoices";
+import { teamsRouter } from "./routers/teams";
+import { gmailRouter } from "./routers/gmail";
 import * as db from "./db";
 import { z } from "zod";
 
@@ -58,6 +60,8 @@ export const appRouter = router({
   scheduledReports: scheduledReportsRouter,
   inventory: inventoryRouter,
   invoices: invoicesRouter,
+  teams: teamsRouter,
+  gmail: gmailRouter,
 
   search: router({
     global: protectedProcedure
