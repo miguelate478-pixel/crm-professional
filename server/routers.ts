@@ -25,6 +25,8 @@ import { inventoryRouter } from "./routers/inventory";
 import { invoicesRouter } from "./routers/invoices";
 import { teamsRouter } from "./routers/teams";
 import { gmailRouter } from "./routers/gmail";
+import { customFieldsRouter } from "./routers/customFields";
+import { callsRouter } from "./routers/calls";
 import * as db from "./db";
 import { z } from "zod";
 
@@ -62,6 +64,8 @@ export const appRouter = router({
   invoices: invoicesRouter,
   teams: teamsRouter,
   gmail: gmailRouter,
+  customFields: customFieldsRouter,
+  calls: callsRouter,
 
   search: router({
     global: protectedProcedure

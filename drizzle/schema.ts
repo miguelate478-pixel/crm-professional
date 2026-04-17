@@ -570,6 +570,61 @@ export const dashboardShares = sqliteTable("dashboard_shares", {
   userIdx: index("share_user_idx").on(t.sharedWith),
 }));
 
+// ── CUSTOM FIELDS ─────────────────────────────────────────────────────────────
+
+export const customFields = sqliteTable("custom_fields", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationId: integer("organizationId").notNull(),
+  entityType: text("entityType", { enum: ["lead", "contact", "opportunity", "company"] }).notNull(),
+  name: text("name").notNull(),
+  label: text("label").notNull(),
+  type: text("type", { enum: ["text", "number", "email", "phone", "date", "select", "checkbox", "textarea"] }).notNull(),
+  required: integer("required", { mode: "boolean" }).default(false).notNull(),
+  options: text("options"), // JSON array for select
+  defaultValue: text("defaultValue"),
+  order: integer("order").default(0).notNull(),
+  isActive: integer("isActive", { mode: "boolean" }).default(true).notNull(),
+  createdAt: text("createdAt").default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text("updatedAt").default(sql`(datetime('now'))`).notNull(),
+}, t => ({
+  orgIdx: index("cf_org_idx").on(t.organizationId),
+}));
+
+export const customFieldValues = sqliteTable("custom_field_values", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fieldId: integer("fieldId").notNull(),
+  entityId: integer("entityId").notNull(),
+  entityType: text("entityType").notNull(),
+  value: text("value"),
+  createdAt: text("createdAt").default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text("updatedAt").default(sql`(datetime('now'))`).notNull(),
+}, t => ({
+  fieldEntityIdx: index("cfv_field_entity_idx").on(t.fieldId, t.entityId),
+}));
+
+// ── CALLS ─────────────────────────────────────────────────────────────────────
+
+export const calls = sqliteTable("calls", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationId: integer("organizationId").notNull(),
+  leadId: integer("leadId"),
+  contactId: integer("contactId"),
+  opportunityId: integer("opportunityId"),
+  assignedTo: integer("assignedTo").notNull(),
+  direction: text("direction", { enum: ["inbound", "outbound"] }).default("outbound").notNull(),
+  status: text("status", { enum: ["completed", "no_answer", "busy", "failed", "scheduled"] }).default("completed").notNull(),
+  duration: integer("duration").default(0), // seconds
+  phone: text("phone"),
+  notes: text("notes"),
+  outcome: text("outcome", { enum: ["interested", "not_interested", "callback", "no_answer", "left_voicemail", "other"] }),
+  scheduledAt: text("scheduledAt"),
+  calledAt: text("calledAt"),
+  createdAt: text("createdAt").default(sql`(datetime('now'))`).notNull(),
+}, t => ({
+  orgIdx: index("call_org_idx").on(t.organizationId),
+  leadIdx: index("call_lead_idx").on(t.leadId),
+}));
+
 // ── GMAIL INTEGRATION ─────────────────────────────────────────────────────────
 
 export const gmailIntegrations = sqliteTable("gmail_integrations", {
@@ -734,6 +789,12 @@ export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = typeof payments.$inferInsert;
 export type GmailIntegration = typeof gmailIntegrations.$inferSelect;
 export type InsertGmailIntegration = typeof gmailIntegrations.$inferInsert;
+export type CustomField = typeof customFields.$inferSelect;
+export type InsertCustomField = typeof customFields.$inferInsert;
+export type CustomFieldValue = typeof customFieldValues.$inferSelect;
+export type InsertCustomFieldValue = typeof customFieldValues.$inferInsert;
+export type Call = typeof calls.$inferSelect;
+export type InsertCall = typeof calls.$inferInsert;
 export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
 export type InsertDashboardWidget = typeof dashboardWidgets.$inferInsert;
 export type DashboardTemplate = typeof dashboardTemplates.$inferSelect;

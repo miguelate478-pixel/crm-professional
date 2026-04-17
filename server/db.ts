@@ -8,7 +8,7 @@ import {
   dashboardConfigs, dashboardWidgets, dashboardTemplates, dashboardShares,
   teamsIntegrations, teamsChannels, teamsMessages,
   inventory, inventoryMovements, invoices, invoiceItems, payments,
-  gmailIntegrations,
+  gmailIntegrations, customFields, customFieldValues, calls,
   type InsertUser, type InsertLead, type InsertContact,
   type InsertOpportunity, type InsertTask, type InsertQuotation,
   type InsertQuotationItem, type InsertCompany, type InsertProduct,
@@ -17,7 +17,7 @@ import {
   type InsertTeamsIntegration, type InsertTeamsChannel, type InsertTeamsMessage,
   type InsertInventory, type InsertInventoryMovement,
   type InsertInvoice, type InsertInvoiceItem, type InsertPayment,
-  type InsertGmailIntegration,
+  type InsertGmailIntegration, type InsertCustomField, type InsertCustomFieldValue, type InsertCall,
 } from "../drizzle/schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -525,6 +525,50 @@ export async function initDb() {
       expiresAt TEXT,
       createdAt TEXT DEFAULT (datetime('now')) NOT NULL,
       updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS custom_fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      entityType TEXT NOT NULL,
+      name TEXT NOT NULL,
+      label TEXT NOT NULL,
+      type TEXT NOT NULL,
+      required INTEGER NOT NULL DEFAULT 0,
+      options TEXT,
+      defaultValue TEXT,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      isActive INTEGER NOT NULL DEFAULT 1,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL,
+      updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS custom_field_values (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fieldId INTEGER NOT NULL,
+      entityId INTEGER NOT NULL,
+      entityType TEXT NOT NULL,
+      value TEXT,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL,
+      updatedAt TEXT DEFAULT (datetime('now')) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS calls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organizationId INTEGER NOT NULL,
+      leadId INTEGER,
+      contactId INTEGER,
+      opportunityId INTEGER,
+      assignedTo INTEGER NOT NULL,
+      direction TEXT NOT NULL DEFAULT 'outbound',
+      status TEXT NOT NULL DEFAULT 'completed',
+      duration INTEGER DEFAULT 0,
+      phone TEXT,
+      notes TEXT,
+      outcome TEXT,
+      scheduledAt TEXT,
+      calledAt TEXT,
+      createdAt TEXT DEFAULT (datetime('now')) NOT NULL
     );
   `);
   await migClient.close();
@@ -2320,4 +2364,142 @@ export async function deleteGmailIntegration(organizationId: number, userId: num
   await db.delete(gmailIntegrations)
     .where(and(eq(gmailIntegrations.organizationId, organizationId), eq(gmailIntegrations.userId, userId)));
   return { success: true };
+}
+
+// ── CUSTOM FIELDS ─────────────────────────────────────────────────────────────
+
+export async function getCustomFields(organizationId: number, entityType?: string) {
+  const db = getDb();
+  const conds: any[] = [eq(customFields.organizationId, organizationId), eq(customFields.isActive, true)];
+  if (entityType) conds.push(eq(customFields.entityType, entityType as any));
+  return db.select().from(customFields).where(and(...conds)).orderBy(customFields.order);
+}
+
+export async function createCustomField(organizationId: number, data: {
+  entityType: "lead" | "contact" | "opportunity" | "company";
+  name: string;
+  label: string;
+  type: "text" | "number" | "email" | "phone" | "date" | "select" | "checkbox" | "textarea";
+  required?: boolean;
+  options?: string[];
+  defaultValue?: string;
+  order?: number;
+}) {
+  const db = getDb();
+  const r = await db.insert(customFields).values({
+    organizationId,
+    entityType: data.entityType,
+    name: data.name,
+    label: data.label,
+    type: data.type,
+    required: data.required ?? false,
+    options: data.options ? JSON.stringify(data.options) : null,
+    defaultValue: data.defaultValue ?? null,
+    order: data.order ?? 0,
+    isActive: true,
+  } as InsertCustomField);
+  return { id: Number(r.lastInsertRowid) };
+}
+
+export async function updateCustomField(organizationId: number, id: number, data: Partial<InsertCustomField>) {
+  const db = getDb();
+  await db.update(customFields).set({ ...data, updatedAt: new Date().toISOString() })
+    .where(and(eq(customFields.id, id), eq(customFields.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function deleteCustomField(organizationId: number, id: number) {
+  const db = getDb();
+  await db.update(customFields).set({ isActive: false, updatedAt: new Date().toISOString() })
+    .where(and(eq(customFields.id, id), eq(customFields.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function getCustomFieldValues(entityType: string, entityId: number) {
+  const db = getDb();
+  return db.select().from(customFieldValues)
+    .where(and(eq(customFieldValues.entityType, entityType), eq(customFieldValues.entityId, entityId)));
+}
+
+export async function setCustomFieldValue(fieldId: number, entityType: string, entityId: number, value: string) {
+  const db = getDb();
+  const existing = await db.select().from(customFieldValues)
+    .where(and(eq(customFieldValues.fieldId, fieldId), eq(customFieldValues.entityId, entityId), eq(customFieldValues.entityType, entityType)))
+    .limit(1);
+  if (existing[0]) {
+    await db.update(customFieldValues).set({ value, updatedAt: new Date().toISOString() })
+      .where(eq(customFieldValues.id, existing[0].id));
+  } else {
+    await db.insert(customFieldValues).values({ fieldId, entityType, entityId, value } as InsertCustomFieldValue);
+  }
+  return { success: true };
+}
+
+// ── CALLS ─────────────────────────────────────────────────────────────────────
+
+export async function getCallsList(organizationId: number, opts: {
+  limit?: number; offset?: number; leadId?: number; contactId?: number;
+} = {}) {
+  const db = getDb();
+  const { limit = 50, offset = 0, leadId, contactId } = opts;
+  const conds: any[] = [eq(calls.organizationId, organizationId)];
+  if (leadId) conds.push(eq(calls.leadId, leadId));
+  if (contactId) conds.push(eq(calls.contactId, contactId));
+  const [data, total] = await Promise.all([
+    db.select().from(calls).where(and(...conds)).orderBy(desc(calls.createdAt)).limit(limit).offset(offset),
+    db.select({ count: sql<number>`COUNT(*)` }).from(calls).where(and(...conds)),
+  ]);
+  return { data, total: Number(total[0]?.count) || 0 };
+}
+
+export async function createCall(organizationId: number, userId: number, data: {
+  leadId?: number; contactId?: number; opportunityId?: number;
+  direction?: "inbound" | "outbound"; status?: string; duration?: number;
+  phone?: string; notes?: string; outcome?: string; scheduledAt?: string; calledAt?: string;
+}) {
+  const db = getDb();
+  const r = await db.insert(calls).values({
+    organizationId,
+    assignedTo: userId,
+    leadId: data.leadId ?? null,
+    contactId: data.contactId ?? null,
+    opportunityId: data.opportunityId ?? null,
+    direction: data.direction ?? "outbound",
+    status: (data.status ?? "completed") as any,
+    duration: data.duration ?? 0,
+    phone: data.phone ?? null,
+    notes: data.notes ?? null,
+    outcome: (data.outcome ?? null) as any,
+    scheduledAt: data.scheduledAt ?? null,
+    calledAt: data.calledAt ?? new Date().toISOString(),
+  } as InsertCall);
+  return { id: Number(r.lastInsertRowid) };
+}
+
+export async function updateCall(organizationId: number, id: number, data: Partial<InsertCall>) {
+  const db = getDb();
+  await db.update(calls).set(data).where(and(eq(calls.id, id), eq(calls.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function deleteCall(organizationId: number, id: number) {
+  const db = getDb();
+  await db.delete(calls).where(and(eq(calls.id, id), eq(calls.organizationId, organizationId)));
+  return { success: true };
+}
+
+export async function getCallStats(organizationId: number) {
+  const db = getDb();
+  const today = new Date().toISOString().split("T")[0];
+  const allCalls = await db.select().from(calls).where(eq(calls.organizationId, organizationId));
+  const todayCalls = allCalls.filter(c => c.createdAt?.startsWith(today));
+  const totalDuration = allCalls.reduce((s, c) => s + (c.duration ?? 0), 0);
+  const completed = allCalls.filter(c => c.status === "completed").length;
+  return {
+    total: allCalls.length,
+    today: todayCalls.length,
+    completed,
+    avgDuration: allCalls.length ? Math.round(totalDuration / allCalls.length) : 0,
+    totalDuration,
+  };
 }
