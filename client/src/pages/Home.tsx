@@ -3,7 +3,7 @@ import { BarChart3, Target, Users, CheckSquare, TrendingUp, Shield } from "lucid
 
 export default function Home() {
   const handleLogin = () => {
-    window.location.href = "/api/dev-login";
+    window.location.href = "/login";
   };
 
   return (
